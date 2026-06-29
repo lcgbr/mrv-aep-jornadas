@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MRV AEP - Visualizador de Jornadas</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-container">
+                    <div class="logo-icon"><i class="fa-solid fa-route"></i></div>
+                    <h2>AEP Journeys</h2>
+                </div>
+                <div class="search-container">
+                    <i class="fa-solid fa-search"></i>
+                    <input type="text" id="searchInput" placeholder="Buscar jornada ou BU...">
+                </div>
+            </div>
+            <div class="sidebar-content" id="sidebarContent">
+                <!-- Journey list will be injected here -->
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="main-header" id="mainHeader">
+                <div class="empty-state">
+                    <i class="fa-regular fa-map"></i>
+                    <h1>Selecione uma jornada</h1>
+                    <p>Escolha uma jornada na barra lateral para visualizar seu mapeamento de campos (DE-PARA).</p>
+                </div>
+            </header>
+
+            <div class="journey-details" id="journeyDetails" style="display: none;">
+                <!-- Header Info -->
+                <div class="metadata-cards">
+                    <div class="card glass-card">
+                        <div class="card-icon"><i class="fa-solid fa-building"></i></div>
+                        <div class="card-info">
+                            <span class="card-label">Business Unit (BU)</span>
+                            <span class="card-value" id="valBU"></span>
+                        </div>
+                    </div>
+                    <div class="card glass-card">
+                        <div class="card-icon"><i class="fa-solid fa-bolt"></i></div>
+                        <div class="card-info">
+                            <span class="card-label">eventType</span>
+                            <span class="card-value" id="valEventType"></span>
+                        </div>
+                    </div>
+                    <div class="card glass-card">
+                        <div class="card-icon"><i class="fa-solid fa-file-csv"></i></div>
+                        <div class="card-info">
+                            <span class="card-label">Arquivo de Origem</span>
+                            <span class="card-value" id="valSourceFile"></span>
+                        </div>
+                    </div>
+                    <div class="card glass-card">
+                        <div class="card-icon"><i class="fa-solid fa-fingerprint"></i></div>
+                        <div class="card-info">
+                            <span class="card-label">sourceEventType</span>
+                            <span class="card-value" id="valSourceEvent"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Fields Table -->
+                <div class="table-container glass-card mt-4">
+                    <div class="table-header">
+                        <h3>Mapeamento de Campos (DE-PARA)</h3>
+                        <span class="badge" id="fieldsCount">0 campos</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="modern-table">
+                            <thead>
+                                <tr>
+                                    <th>Campo Origem (CSV)</th>
+                                    <th>Destino AEP (XDM)</th>
+                                    <th>Field Group (FG)</th>
+                                    <th>Tipo</th>
+                                    <th>Observações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="fieldsTableBody">
+                                <!-- Rows injected here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loader" class="loader-overlay">
+        <div class="spinner"></div>
+    </div>
+
+    <script src="data.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
