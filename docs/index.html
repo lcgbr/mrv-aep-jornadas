@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MRV AEP — Jornadas | Lima Consulting Group</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'lima-teal': '#163a4a',
+                        'lima-dark': '#0f2d3a',
+                        'lima-orange': '#e8721c',
+                        'lima-orange-light': '#f59e0b',
+                        'lima-light': '#f0f7fa'
+                    },
+                    fontFamily: { sans: ['Inter', 'sans-serif'] }
+                }
+            }
+        };
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="./styles.css">
+</head>
+<body class="bg-slate-50 text-slate-800 h-screen flex flex-col overflow-hidden font-sans">
+
+    <!-- HERO / HEADER -->
+    <header class="hero-section text-white relative overflow-hidden flex-shrink-0">
+        <div class="absolute inset-0 opacity-5 pointer-events-none">
+            <svg class="absolute right-0 top-0 h-full w-1/2" viewBox="0 0 400 200" fill="none" preserveAspectRatio="none">
+                <polygon points="150,0 400,100 150,200" fill="white"/>
+                <polygon points="220,20 400,100 220,180" fill="white" opacity="0.5"/>
+            </svg>
+        </div>
+        <div class="relative z-10 px-6 py-4 flex items-center justify-between gap-4 flex-wrap">
+            <div class="flex items-center gap-4">
+                <img src="https://res.cloudinary.com/lima-consulting-group/images/f_auto,q_auto/v1738255448/lcg-full-color-2024_102937c6c5/lcg-full-color-2024_102937c6c5.png?_i=AA"
+                     alt="LIMA Consulting Group" class="h-9 brightness-0 invert" onerror="this.style.display='none'">
+                <div class="border-l border-white/20 pl-4">
+                    <h1 class="text-lg font-bold leading-tight">MRV AEP — Jornadas</h1>
+                    <p class="text-xs text-slate-300">DE-PARA XDM &amp; Payloads WhatsApp (SFMC → AJO)</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <!-- Switcher de visão -->
+                <div class="inline-flex rounded-lg overflow-hidden border border-white/20 text-sm">
+                    <button id="tab-depara" onclick="setView('depara')" class="px-4 py-1.5 font-semibold transition-colors">
+                        <i class="fa-solid fa-table-list mr-1"></i> DE-PARA
+                    </button>
+                    <button id="tab-whatsapp" onclick="setView('whatsapp')" class="px-4 py-1.5 font-semibold transition-colors">
+                        <i class="fa-brands fa-whatsapp mr-1"></i> WhatsApp
+                    </button>
+                </div>
+                <!-- Toggle PRD/QAS (só na visão WhatsApp) -->
+                <div id="env-toggle" class="hidden items-center gap-2">
+                    <span class="text-xs text-slate-300">botNumber:</span>
+                    <div class="inline-flex rounded-lg overflow-hidden border border-white/20 text-sm">
+                        <button id="btn-prd" onclick="setBotEnv('PRD')" class="px-3 py-1.5 font-semibold transition-colors">PRD</button>
+                        <button id="btn-qas" onclick="setBotEnv('QAS')" class="px-3 py-1.5 font-semibold transition-colors">QAS</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Banner de prefixo pendente -->
+    <div id="prefix-banner" class="hidden bg-amber-100 border-b border-amber-300 text-amber-800 text-sm px-6 py-2 flex-shrink-0">
+        <i class="fa-solid fa-triangle-exclamation mr-2"></i>
+        Defina <code class="font-mono font-semibold">AJO_EVENT_PREFIX</code> no <code class="font-mono">build_site.py</code> e regere o site — as variáveis WhatsApp estão usando um prefixo placeholder.
+    </div>
+
+    <!-- LAYOUT: sidebar + main -->
+    <div class="flex flex-1 overflow-hidden">
+        <aside class="w-80 bg-white border-r border-slate-200 flex flex-col overflow-hidden flex-shrink-0">
+            <div class="p-4 border-b border-slate-200">
+                <div class="relative">
+                    <input type="text" id="searchInput" placeholder="Buscar jornada ou BU..."
+                        class="w-full px-4 py-2 pl-10 rounded-lg border border-slate-300 focus:border-lima-teal focus:ring-2 focus:ring-lima-teal/20 text-sm outline-none transition">
+                    <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                    </svg>
+                </div>
+                <div class="mt-2 flex items-center justify-between text-xs text-slate-500">
+                    <span id="view-label" class="uppercase tracking-wider font-semibold">DE-PARA</span>
+                    <span id="count-badge" class="bg-lima-teal text-white px-2 py-0.5 rounded-full font-semibold">0</span>
+                </div>
+            </div>
+            <div class="flex-1 overflow-y-auto p-3 lima-scroll" id="sidebar-content"></div>
+        </aside>
+
+        <main class="flex-1 overflow-y-auto p-6 lima-scroll" id="main-content">
+            <div class="flex flex-col items-center justify-center h-full text-center text-slate-400">
+                <i class="fa-regular fa-map text-6xl mb-4 opacity-40"></i>
+                <h2 class="text-xl font-bold text-slate-600 mb-1">Selecione uma jornada</h2>
+                <p class="max-w-sm text-sm">Escolha uma jornada na barra lateral para visualizar o mapeamento.</p>
+            </div>
+        </main>
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="hero-section text-white flex-shrink-0">
+        <div class="px-6 py-3 flex items-center justify-between text-xs flex-wrap gap-2">
+            <div class="flex items-center gap-3">
+                <img src="https://res.cloudinary.com/lima-consulting-group/images/f_auto,q_auto/v1738255448/lcg-full-color-2024_102937c6c5/lcg-full-color-2024_102937c6c5.png?_i=AA"
+                     alt="LIMA Consulting Group" class="h-6 brightness-0 invert" onerror="this.style.display='none'">
+                <span class="text-slate-300">© Lima Consulting Group · MRV</span>
+            </div>
+            <span class="text-slate-400">MRV AEP — Jornadas · v1.0</span>
+        </div>
+    </footer>
+
+    <!-- Toast -->
+    <div id="toast" class="fixed bottom-4 right-4 bg-lima-teal text-white px-4 py-2 rounded-lg shadow-lg transition-opacity duration-300 opacity-0 pointer-events-none z-50">
+        Copiado para a área de transferência!
+    </div>
+
+    <script src="./data.js"></script>
+    <script src="./app.js"></script>
+</body>
+</html>
