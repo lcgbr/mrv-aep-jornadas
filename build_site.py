@@ -1,9 +1,9 @@
 """
 Gerador único do site estático MRV AEP — Jornadas (DE-PARA + WhatsApp SFMC→AJO).
-Lê os .md de de-para e os payloads WhatsApp e escreve docs/data.js.
+Lê os .md de de-para e os payloads WhatsApp e escreve data.js (raiz do site).
 Aposenta o antigo generate_data.js (Node).
 
-Rode localmente (onde as pastas-fonte existem) e faça commit de docs/.
+Rode localmente (onde as pastas-fonte existem) e faça commit dos arquivos do site.
     python build_site.py
 """
 import json
@@ -28,7 +28,7 @@ BOT_NUMBERS = {
 # ----------------------------------------------------------------------------
 DE_PARA_DIR = Path(r"d:\Projetos\clientes\MRV\AEP\docs_markdown\de_para_jornadas")
 PAYLOADS_DIR = Path(r"d:\Projetos\clientes\MRV\AJO\mrv-sfmc-ajo-migration\whatsapp_payloads")
-OUT_DATA = Path(__file__).resolve().parent / "docs" / "data.js"
+OUT_DATA = Path(__file__).resolve().parent / "data.js"
 
 _XDM_PATH_RE = re.compile(r"[A-Za-z_][\w]*(?:\.[\w]+)+")
 
