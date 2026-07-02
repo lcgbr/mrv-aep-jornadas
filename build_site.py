@@ -21,6 +21,41 @@ BOT_NUMBERS = {
     "QAS": {"MariaRosa": "553173160076", "BotComercial": "553173160076"},
 }
 
+# Nomes de evento AJO PROPOSTOS (ainda não criados no AJO) p/ as jornadas sem evento —
+# ver jornadas_eventos_ajo.md (coluna Status Evento = novo/reapontar). Chave =
+# sourceEventType (lower). Só preenche lacunas: eventos reais do JSON têm prioridade.
+PROPOSED_EVENTS = {
+    "assistenciatecnicaagendamentovistoriaantecipada": "MRV_FTP_Agend_Visto_Antecip",
+    "assistenciatecnicaimplantacaocondominio": "MRV_FTP_Implant_Condominio",
+    "assistenciatecnicawhatsnpsprofissionalatencaosindico": "MRV_FTP_NPS_Prof_Aten_Sind",
+    "assistenciatecnicawhatsappvareagendamento": "MRV_FTP_VA_Reagendamento",
+    "assistenciatecnicawhatsappvareparosfinalizados": "MRV_FTP_VA_Reparos_Final",
+    "assistenciatecnicawhatsenviochavesfechaduraeletronica": "MRV_FTP_Envio_Chaves_Fech",
+    "cobrancaanteciparwpp2": "MRV_FTP_Antecipar_Wpp2",
+    "cobrancajbwedoemail": "MRV_FTP_Cob_Wedo_Email",
+    "cobrancacobrancaluggo": "MRV_FTP_Cobranca_Luggo",
+    "cobrancawppaditivo": "MRV_FTP_Wpp_Aditivo",
+    "cobrancawhatsabatimentonegociacao": "MRV_FTP_Abatimento_Negoc",
+    "cobrancawhatsapprenegociar2023": "MRV_FTP_Renegociar_2023",
+    "marketplacejraquecimentolancamentos": "MRV_FTP_Aquecimento_Lanc",
+    "relacionamentopatrimoniocomissaoafetacao": "MRV_FTP_Patrim_Comis_Afet",
+    "relacionamentowhatsappdirecionamentocca": "MRV_FTP_Direcionamento_CCA",
+    "relacionamentowhatsappdisparopesquisareclameaqui": "MRV_FTP_Disp_Pesq_Recl_Aqui",
+    "relacionamentoreagendamentovisita": "MRV_FTP_Reagend_Visita",
+    "relacionamentovisitaaobrav2": "MRV_FTP_Visita_Obra_V2",
+    "relacionamentowhatspremioreclame": "MRV_FTP_Premio_Reclame",
+    "relacionamentowhatsappdisparopesquisanps": "MRV_FTP_Disp_Pesq_NPS",
+    "sensiaboasvindasnovasensiaftp": "MRV_FTP_Sen_BoasVindas",
+    "sensiaeleicaocomissaodepa": "MRV_FTP_Sen_Eleic_Comis_PA",
+    "sensiaimplantacaocondcopy": "MRV_FTP_Sen_Implant_Cond",
+    "sensiajbwedoemail": "MRV_FTP_Sen_Wedo_Email",
+    "sensiaconvocacaoeleicaopa": "MRV_FTP_Sen_Convoc_Elei_PA",
+    "sensiajurosobra": "MRV_FTP_Sen_Juros_Obra",
+    "sensiamiaagendamentovistoriaporemail": "MRV_FTP_Sen_Mia_Agend_Vist",
+    "sensiaposassinatura": "MRV_FTP_Sen_Pos_Assinatura",
+    "sensiarenegociacao": "MRV_FTP_Sen_Renegociacao",
+}
+
 # ----------------------------------------------------------------------------
 # Fontes (ajuste se rodar fora da máquina de origem)
 # ----------------------------------------------------------------------------
@@ -196,6 +231,10 @@ def build_wpp(payloads_dir: Path, de_para_index: list, ajo_map: dict):
     with open(index_path, "r", encoding="utf-8") as f:
         index_data = json.load(f)
 
+    # de-para também indexado por sourceEventType (p/ jornadas que trazem o campo explícito)
+    depara_by_set = {e["sourceEventType"].strip().lower(): e
+                     for e in de_para_index if e.get("sourceEventType")}
+
     data_by_bu = {}
     matched = with_event = 0
     for j in index_data.get("jornadas", []):
@@ -206,9 +245,16 @@ def build_wpp(payloads_dir: Path, de_para_index: list, ajo_map: dict):
         with open(file_path, "r", encoding="utf-8") as f:
             journey = json.load(f)
 
-        entry = match_de_para(journey.get("bu", bu), journey.get("journeyName", ""), de_para_index)
+        # Prioriza sourceEventType explícito no payload (jornadas adicionadas à mão);
+        # senão casa pelo nome da jornada contra as fichas de de-para.
+        explicit = (journey.get("sourceEventType") or "").strip()
+        if explicit:
+            entry = depara_by_set.get(explicit.lower())
+            source_event = explicit
+        else:
+            entry = match_de_para(journey.get("bu", bu), journey.get("journeyName", ""), de_para_index)
+            source_event = (entry["sourceEventType"] if entry else "") or ""
         journey["_deParaFields"] = entry["fields_map"] if entry else {}
-        source_event = (entry["sourceEventType"] if entry else "") or ""
         journey["_ajoEvent"] = ajo_map.get(source_event.strip().lower())  # nome do evento ou None
 
         if journey["_deParaFields"]:
@@ -229,6 +275,10 @@ def main():
 
     depara_list, depara_index = parse_de_para(DE_PARA_DIR)
     ajo_map = build_ajo_event_map(AJO_EVENTS_DIR)
+    added = [k for k in PROPOSED_EVENTS if k not in ajo_map]
+    for k in added:
+        ajo_map[k] = PROPOSED_EVENTS[k]
+    print(f"[ajo] +{len(added)} nomes propostos aplicados (lacunas sem evento real)")
     wpp_data = build_wpp(PAYLOADS_DIR, depara_index, ajo_map)
 
     config = {
