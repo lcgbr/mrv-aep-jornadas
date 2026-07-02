@@ -6,17 +6,15 @@ Aposenta o antigo generate_data.js (Node).
 Rode localmente (onde as pastas-fonte existem) e faça commit dos arquivos do site.
     python build_site.py
 """
+import difflib
 import json
 import re
 import sys
 from pathlib import Path
 
-# ============================================================================
-# ⚠️  PREENCHER: prefixo do evento AJO (FIXO p/ todas as jornadas).
-# Variável final = {{ <AJO_EVENT_PREFIX><pathXDM> }}
-# Enquanto contiver "__PREENCHER__", o site mostra um aviso no topo.
-# ============================================================================
-AJO_EVENT_PREFIX = "Event.__PREENCHER__."
+# Variável de evento AJO: @event{<NomeDoEvento>.<pathXDM>}. O nome do evento é
+# resolvido por jornada via mapa sourceEventType -> nome, extraído dos
+# unitary_events_AJO_*.json. Jornadas sem evento caem no fallback (mantém SFMC + ⚠️).
 PHONE_XDM = "_mrv.identityEvents.phone"
 BOT_NUMBERS = {
     "PRD": {"MariaRosa": "553199009000", "BotComercial": "558007289000"},
@@ -28,6 +26,7 @@ BOT_NUMBERS = {
 # ----------------------------------------------------------------------------
 DE_PARA_DIR = Path(r"d:\Projetos\clientes\MRV\AEP\docs_markdown\de_para_jornadas")
 PAYLOADS_DIR = Path(r"d:\Projetos\clientes\MRV\AJO\mrv-sfmc-ajo-migration\whatsapp_payloads")
+AJO_EVENTS_DIR = Path(r"d:\Projetos\clientes\MRV\AJO")  # unitary_events_AJO_*.json
 OUT_DATA = Path(__file__).resolve().parent / "data.js"
 
 _XDM_PATH_RE = re.compile(r"[A-Za-z_][\w]*(?:\.[\w]+)+")
@@ -106,7 +105,8 @@ def parse_de_para(de_para_dir: Path):
             if m:
                 fields_map[f["csvField"].strip().lower()] = m.group(0)
         journey_name = re.sub(r"\s*\([^)]*\)\s*$", "", title).strip()
-        index.append({"journeyName": journey_name, "buLabel": bu, "fields_map": fields_map})
+        index.append({"journeyName": journey_name, "buLabel": bu,
+                      "fields_map": fields_map, "sourceEventType": source_event})
 
     print(f"[de-para] {len(jornadas)} jornadas carregadas")
     return jornadas, index
@@ -116,26 +116,78 @@ def _norm_bu(s: str) -> str:
     return re.sub(r"[^a-z0-9]", "", (s or "").lower())
 
 
-def match_de_para(bu: str, journey_name: str, index: list) -> dict:
+def match_de_para(bu: str, journey_name: str, index: list):
+    """Retorna a entrada de-para da jornada (fields_map + sourceEventType) ou None."""
     jn = (journey_name or "").strip().lower()
     cands = [e for e in index if e["journeyName"].strip().lower() == jn]
     if not cands:
-        return {}
+        return None
     if len(cands) == 1:
-        return cands[0]["fields_map"]
+        return cands[0]
     pbu = _norm_bu(bu)
     for e in cands:
         ebu = _norm_bu(e["buLabel"])
         if ebu and ebu in pbu:
-            return e["fields_map"]
-    return {}
+            return e
+    return None
+
+
+# ----------------------------------------------------------------------------
+# Eventos unitários AJO — mapa sourceEventType -> Nome do evento (MRV_FTP_*)
+# Extrai da condição de qualificação o valor de json://_mrv/sourceContext/sourceEventType.
+# ----------------------------------------------------------------------------
+
+def _collect_cond_pairs(node, pairs):
+    if isinstance(node, dict):
+        if node.get("type") == "function" and node.get("function") in ("equal", "in"):
+            ref, vals = None, []
+            for a in node.get("args", []):
+                if not isinstance(a, dict):
+                    continue
+                if a.get("type") == "eventFieldRef":
+                    ref = a.get("fieldRef")
+                elif a.get("type") == "constant":
+                    vals.append(a.get("value"))
+                elif a.get("type") == "list":
+                    vals += [c.get("value") for c in a.get("values", [])
+                             if isinstance(c, dict) and c.get("type") == "constant"]
+            if ref and vals:
+                pairs.append((ref, vals))
+        for v in node.values():
+            _collect_cond_pairs(v, pairs)
+    elif isinstance(node, list):
+        for v in node:
+            _collect_cond_pairs(v, pairs)
+
+
+def build_ajo_event_map(ajo_dir: Path) -> dict:
+    """{ sourceEventTypeLower: nomeDoEvento } dos eventos MRV_FTP_*."""
+    files = sorted(ajo_dir.glob("unitary_events_AJO_*.json"))
+    by_set = {}
+    for fp in files:
+        for ev in json.loads(fp.read_text(encoding="utf-8")).get("results", []):
+            name = ev.get("name") or ""
+            if not name.startswith("MRV_FTP"):
+                continue
+            pairs = []
+            _collect_cond_pairs(ev.get("eventQualificationCondition"), pairs)
+            source_event = next((vals[0] for ref, vals in pairs if "sourceEventType" in ref), None)
+            if not source_event:
+                continue
+            key = source_event.strip().lower()
+            if key in by_set:  # desempate: fica o nome mais parecido com o sourceEventType
+                sim = lambda n: difflib.SequenceMatcher(None, re.sub(r"[^a-z0-9]", "", n.lower()), key).ratio()
+                name = max([by_set[key], name], key=sim)
+            by_set[key] = name
+    print(f"[ajo] {len(by_set)} eventos MRV_FTP mapeados de {len(files)} arquivo(s)")
+    return by_set
 
 
 # ----------------------------------------------------------------------------
 # WhatsApp — payloads + de-para por jornada
 # ----------------------------------------------------------------------------
 
-def build_wpp(payloads_dir: Path, de_para_index: list):
+def build_wpp(payloads_dir: Path, de_para_index: list, ajo_map: dict):
     index_path = payloads_dir / "_indice_whatsapp.json"
     if not index_path.exists():
         print(f"[wpp] índice não encontrado: {index_path}")
@@ -145,7 +197,7 @@ def build_wpp(payloads_dir: Path, de_para_index: list):
         index_data = json.load(f)
 
     data_by_bu = {}
-    matched = 0
+    matched = with_event = 0
     for j in index_data.get("jornadas", []):
         bu, jid = j["bu"], j["journeyId"]
         file_path = payloads_dir / bu / f"{jid}.json"
@@ -153,14 +205,20 @@ def build_wpp(payloads_dir: Path, de_para_index: list):
             continue
         with open(file_path, "r", encoding="utf-8") as f:
             journey = json.load(f)
-        fields = match_de_para(journey.get("bu", bu), journey.get("journeyName", ""), de_para_index)
-        journey["_deParaFields"] = fields
-        if fields:
+
+        entry = match_de_para(journey.get("bu", bu), journey.get("journeyName", ""), de_para_index)
+        journey["_deParaFields"] = entry["fields_map"] if entry else {}
+        source_event = (entry["sourceEventType"] if entry else "") or ""
+        journey["_ajoEvent"] = ajo_map.get(source_event.strip().lower())  # nome do evento ou None
+
+        if journey["_deParaFields"]:
             matched += 1
+        if journey["_ajoEvent"]:
+            with_event += 1
         data_by_bu.setdefault(bu, []).append(journey)
 
     total = sum(len(v) for v in data_by_bu.values())
-    print(f"[wpp] {total} jornadas; com de-para resolvido: {matched}/{total}")
+    print(f"[wpp] {total} jornadas; de-para {matched}/{total}; com evento AJO {with_event}/{total}")
     return data_by_bu
 
 
@@ -170,10 +228,10 @@ def main():
         sys.stdout.reconfigure(encoding="utf-8")
 
     depara_list, depara_index = parse_de_para(DE_PARA_DIR)
-    wpp_data = build_wpp(PAYLOADS_DIR, depara_index)
+    ajo_map = build_ajo_event_map(AJO_EVENTS_DIR)
+    wpp_data = build_wpp(PAYLOADS_DIR, depara_index, ajo_map)
 
     config = {
-        "ajoEventPrefix": AJO_EVENT_PREFIX,
         "phoneXdm": PHONE_XDM,
         "botNumbers": BOT_NUMBERS,
     }

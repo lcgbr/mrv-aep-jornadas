@@ -23,13 +23,16 @@ mrv-aep-jornadas/   ← GitHub Pages serve a raiz
 
 ## Regerar os dados
 
-`build_site.py` lê as fontes locais (de-para `.md` + payloads WhatsApp) e reescreve `data.js`.
+`build_site.py` lê as fontes locais e reescreve `data.js`:
+- de-para `de_para_jornadas/*.md`
+- payloads WhatsApp (`whatsapp_payloads/`)
+- eventos unitários AJO (`unitary_events_AJO_*.json`) → mapa `sourceEventType → nome do evento`
 
 ```bash
 python build_site.py
 ```
 
-> Antes, preencha **`AJO_EVENT_PREFIX`** no topo de `build_site.py` (enquanto contiver `__PREENCHER__`, o site exibe um aviso). A variável final fica `{{<AJO_EVENT_PREFIX><pathXDM>}}`.
+As variáveis do payload AJO saem como **`@event{<NomeDoEvento>._mrv...}`** por jornada (resolvido pelo mapa). Jornadas **sem** evento unitário no AJO mantêm a variável SFMC original (`{{Event...}}`) e são sinalizadas com ⚠️ no site para revisão manual.
 
 ## Publicar no GitHub Pages
 

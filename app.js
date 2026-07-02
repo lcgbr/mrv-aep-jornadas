@@ -4,7 +4,6 @@
 const DEPARA = window.DEPARA_DATA || [];
 const WPP = window.WPP_DATA || {};
 const CFG = window.SITE_CONFIG || {};
-const AJO_EVENT_PREFIX = CFG.ajoEventPrefix || '';
 const BOT_NUMBERS = CFG.botNumbers || { PRD: {}, QAS: {} };
 const PHONE_XDM = CFG.phoneXdm || '_mrv.identityEvents.phone';
 
@@ -12,7 +11,25 @@ let currentView = 'depara';   // 'depara' | 'whatsapp'
 let currentBotEnv = 'PRD';    // 'PRD' | 'QAS'
 let selectedDeParaId = null;
 let selectedWpp = null;       // { journeyId, activityId }
-let currentAjoStr = '';
+let currentAjoStr = '';        // payload AJO como JSON identado (visualização)
+let currentAjoPayload = null;  // objeto do payload AJO atual (p/ copiar como string ou JSON)
+
+// Overrides globais aplicados a TODOS os payloads quando currentBotEnv === 'QAS'.
+// Campo vazio = não sobrescreve. templateName vazio = mantém o automático _prd->_qas
+// por jornada; preenchido = força o MESMO nome em todos os payloads.
+const QAS_OVERRIDES = { userNumber: '', namespaceId: '', templateName: '', suffixSwap: true };
+
+// Remove zero-width/BOM (achado: 14 payloads têm  grudado no namespaceId).
+function cleanInvisible(s) {
+    return String(s == null ? '' : s)
+        .split('')
+        .filter(function (ch) {
+            var c = ch.charCodeAt(0);
+            return !((c >= 0x200B && c <= 0x200F) || (c >= 0x202A && c <= 0x202E) || c === 0xFEFF);
+        })
+        .join('')
+        .trim();
+}
 
 // ============================ Util ============================
 function escapeHtml(s) {
@@ -24,19 +41,30 @@ function isXdmPath(v) {
     return typeof v === 'string' && /^[A-Za-z_][\w]*(\.[\w]+)+/.test(v.trim());
 }
 
-function showToast() {
+function showToast(msg) {
     const toast = document.getElementById('toast');
+    if (msg) toast.textContent = msg;
     toast.classList.remove('opacity-0');
     setTimeout(() => toast.classList.add('opacity-0'), 2000);
 }
 
-function copyToClipboard(text) {
-    navigator.clipboard.writeText(text).then(showToast).catch(err => {
+function copyToClipboard(text, msg) {
+    navigator.clipboard.writeText(text).then(() => showToast(msg)).catch(err => {
         console.error('Falha ao copiar:', err);
         alert('Erro ao copiar para a área de transferência.');
     });
 }
-function copyCurrent() { copyToClipboard(currentAjoStr); }
+
+// Duas formas de copiar o payload AJO. Padrão = STRING: JSON compacto (1 linha, sem
+// espaços) escapado e entre aspas, ex.: "{\"templateName\":...}". JSON.stringify já
+// escapa qualquer controle; .trim() garante zero espaço/quebra de linha nas pontas.
+function copyAjoString() {
+    const compact = JSON.stringify(currentAjoPayload || {});
+    copyToClipboard(JSON.stringify(compact).trim(), 'Copiado como string!');
+}
+function copyAjoJson() {
+    copyToClipboard((currentAjoStr || '').trim(), 'Copiado como JSON!');
+}
 
 // ============================ Conversão de variáveis SFMC → AJO ============================
 // 3 fontes possíveis no SFMC: DEAudience, AutomationAud, APIEvent.
@@ -50,20 +78,32 @@ function resolveXdm(field, deParaFields) {
     return v || null;                                    // 3. sem destino -> fallback
 }
 
-function convertVar(str, deParaFields, warnings) {
+// Converte os merge fields SFMC -> @event{<NomeDoEvento>.<pathXDM>}.
+// Sem evento AJO da jornada (ajoEvent null) OU campo sem path conhecido:
+// mantém o {{Event...}} original e registra em warnings.
+function convertVar(str, deParaFields, ajoEvent, warnings) {
     if (!str) return str;
     return str.replace(SF_VAR_RE, function (full, field) {
-        const xdm = resolveXdm(field, deParaFields);
-        if (xdm) return '{{' + AJO_EVENT_PREFIX + xdm + '}}';
+        const xdm = ajoEvent ? resolveXdm(field, deParaFields) : null;
+        if (xdm) return '@event{' + ajoEvent + '.' + xdm + '}';
         if (warnings && warnings.indexOf(full) === -1) warnings.push(full);
         return full; // fallback: mantém {{Event...}} original
     });
 }
 
-// Transformação espelhando o send-message.ts do com_sf_custom_activity
+// quick_reply carrega `payload`; url carrega `text`. Espelha buttonParamType de
+// lima-payload-generator/src/utils/payloadGenerator.js — o tipo/campo do parâmetro
+// é DITADO pelo buttonSubtype (contrato WhatsApp aprovado no Meta), não pelo `type`
+// do dado SFMC (que vem errado para os botões url e omitido no mia_itbi_prd).
+function buttonParamType(buttonSubtype) {
+    return buttonSubtype === 'url' ? 'text' : 'payload';
+}
+
+// Transformação SFMC → AJO (botões normalizados pelo contrato WhatsApp)
 function mapToAjoFormat(journey, act) {
     const sfmc = act.payload || {};
     const deParaFields = (journey && journey._deParaFields) || {};
+    const ajoEvent = (journey && journey._ajoEvent) || null;  // nome do evento unitário AJO
     const warnings = [];
 
     const botName = sfmc.botName || '';
@@ -75,7 +115,7 @@ function mapToAjoFormat(journey, act) {
     if (texts.length > 0) {
         components.push({
             type: 'body',
-            parameters: texts.map(t => ({ type: 'text', text: convertVar(t, deParaFields, warnings) }))
+            parameters: texts.map(t => ({ type: 'text', text: convertVar(t, deParaFields, ajoEvent, warnings) }))
         });
     }
 
@@ -83,15 +123,22 @@ function mapToAjoFormat(journey, act) {
         const pt = m.parameterType;
         if (pt === 'image' || pt === 'video' || pt === 'document') {
             const param = { type: pt };
-            param[pt] = { link: convertVar(m.link, deParaFields, warnings) };
+            param[pt] = { link: convertVar(m.link, deParaFields, ajoEvent, warnings) };
             components.push({ type: m.componentType, parameters: [param] });
         }
     });
 
     (sfmc.templateButton || []).forEach(b => {
-        const parameter = { type: b.type };
-        if (b.text) parameter.text = convertVar(b.text, deParaFields, warnings);
-        if (b.payload) parameter.payload = convertVar(b.payload, deParaFields, warnings);
+        // O parâmetro segue o buttonSubtype: url → {type:'text', text}, quick_reply →
+        // {type:'payload', payload}. Corrige dados SFMC que guardam a URL em `payload`
+        // ou omitem `type` (ex.: botões url NPS/reclame, mia_itbi_prd).
+        const paramType = buttonParamType(b.buttonSubtype);
+        const rawValue = paramType === 'text'
+            ? (b.text || b.payload || '')
+            : (b.payload || b.text || '');
+        const parameter = { type: paramType };
+        const value = convertVar(rawValue, deParaFields, ajoEvent, warnings);
+        if (value) parameter[paramType] = value;
         components.push({
             type: 'button',
             buttonIndex: b.buttonIndex,
@@ -100,27 +147,52 @@ function mapToAjoFormat(journey, act) {
         });
     });
 
+    const qas = currentBotEnv === 'QAS';
+
+    // templateName: em QAS, troca sufixo _prd -> _qas (opcional, via checkbox).
+    // O override global (campo na barra QAS) vence e força o mesmo nome em todos.
+    let templateName = sfmc.templateName || '';
+    if (qas && QAS_OVERRIDES.suffixSwap) templateName = templateName.replace(/_prd$/i, '_qas');
+    if (qas && QAS_OVERRIDES.templateName.trim()) templateName = QAS_OVERRIDES.templateName.trim();
+
+    // namespaceId: sempre sem zero-width; override QAS tem prioridade se preenchido.
+    let namespaceId = cleanInvisible(sfmc.namespaceId);
+    if (qas && QAS_OVERRIDES.namespaceId.trim()) namespaceId = QAS_OVERRIDES.namespaceId.trim();
+
+    // userNumber: em QAS com número de teste preenchido, usa o fixo (sem converter var).
+    let userNumber;
+    if (qas && QAS_OVERRIDES.userNumber.trim()) {
+        userNumber = QAS_OVERRIDES.userNumber.trim();
+    } else {
+        userNumber = convertVar(sfmc.userNumber || '', deParaFields, ajoEvent, warnings);
+    }
+
     const payload = {
-        templateName: sfmc.templateName || '',
-        namespaceId: sfmc.namespaceId || '',
+        templateName: templateName,
+        namespaceId: namespaceId,
         attachedBot: botName,
         botNumber: botNumber,
-        userNumber: convertVar(sfmc.userNumber || '', deParaFields, warnings),
+        userNumber: userNumber,
         components: components
     };
-    const hasDePara = !!(deParaFields && Object.keys(deParaFields).length);
-    return { payload, warnings, hasDePara };
+    return { payload, warnings, ajoEvent };
 }
 
-// Realça {{...}} no JSON renderizado (verde p/ convertido AJO, vermelho p/ original SFMC)
+// Realça variáveis no JSON: verde p/ @event{...} convertido, vermelho p/ {{Event...}} SFMC residual
 function highlightVars(jsonStr) {
     let out = escapeHtml(jsonStr);
-    out = out.replace(/\{\{[^}]+\}\}/g, function (m) {
-        const isOriginal = /Event\.(DEAudience|AutomationAud|APIEvent)-/.test(m);
-        const cls = isOriginal ? 'var-warn' : 'var-ok';
-        return '<span class="' + cls + '">' + m + '</span>';
-    });
+    out = out.replace(/@event\{[^}]+\}/g, m => '<span class="var-ok">' + m + '</span>');
+    out = out.replace(/\{\{[^}]+\}\}/g, m => '<span class="var-warn">' + m + '</span>');
     return out;
+}
+
+// Busca por tokens: TODOS os termos (separados por espaço) devem aparecer no texto,
+// em qualquer ordem/posição. Ex.: "disparo pesquisa nps" casa a jornada cujo nome tem
+// "disparo pesquisa" e cujo template tem "nps" (mesmo não sendo contíguos).
+function matchesQuery(haystack, q) {
+    if (!q) return true;
+    const hay = (haystack || '').toLowerCase();
+    return q.toLowerCase().split(/\s+/).filter(Boolean).every(tok => hay.includes(tok));
 }
 
 // ============================ Sidebar (por visão) ============================
@@ -132,8 +204,7 @@ function buildSidebar(term) {
 
     if (currentView === 'depara') {
         const filtered = DEPARA.filter(j =>
-            !q || j.title.toLowerCase().includes(q) || (j.bu || '').toLowerCase().includes(q) ||
-            (j.sourceEventType || '').toLowerCase().includes(q));
+            matchesQuery((j.title || '') + ' ' + (j.bu || '') + ' ' + (j.sourceEventType || ''), q));
         const grouped = {};
         filtered.forEach(j => { (grouped[j.bu] = grouped[j.bu] || []).push(j); });
         Object.keys(grouped).sort().forEach(bu => {
@@ -154,8 +225,8 @@ function buildSidebar(term) {
             journeys.forEach(journey => {
                 (journey.whatsappActivities || []).forEach(act => {
                     const label = act.templateName || act.activityKey || '';
-                    const hay = (label + ' ' + (journey.journeyName || '') + ' ' + bu).toLowerCase();
-                    if (!q || hay.includes(q)) matches.push({ journey, act, label });
+                    const hay = label + ' ' + (journey.journeyName || '') + ' ' + bu;
+                    if (matchesQuery(hay, q)) matches.push({ journey, act, label });
                 });
             });
             if (!matches.length) return;
@@ -269,19 +340,24 @@ function selectWpp(journey, act) {
     const rawStr = JSON.stringify(act.payload || {}, null, 2);
     const ajoStr = JSON.stringify(result.payload, null, 2);
     currentAjoStr = ajoStr;
+    currentAjoPayload = result.payload;
 
+    const N = result.warnings.length;
     let warnHtml = '';
-    if (result.warnings.length) {
+    if (N) {
         const items = result.warnings.map(w =>
             '<li class="font-mono text-xs break-all">' + escapeHtml(w) + '</li>').join('');
+        const msg = result.ajoEvent
+            ? (N + ' variável(is) sem path de de-para — mantidas no formato SFMC, revisar manualmente:')
+            : ('Jornada sem evento unitário AJO — ' + N + ' variável(is) mantidas no formato SFMC:');
         warnHtml =
             '<div class="mb-4 bg-amber-50 border border-amber-300 rounded-lg p-4">' +
-            '<div class="font-bold text-amber-800 mb-1"><i class="fa-solid fa-triangle-exclamation mr-2"></i>' +
-            result.warnings.length + ' variável(is) sem de-para de evento — mantidas no formato SFMC, revisar manualmente:</div>' +
+            '<div class="font-bold text-amber-800 mb-1"><i class="fa-solid fa-triangle-exclamation mr-2"></i>' + msg + '</div>' +
             '<ul class="list-disc list-inside text-amber-900 mt-1">' + items + '</ul></div>';
     }
-    const noDeParaBadge = result.hasDePara ? '' :
-        '<span class="ml-2 text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full">sem de-para da jornada</span>';
+    const eventBadge = result.ajoEvent
+        ? '<span class="ml-2 text-xs bg-lima-light text-lima-teal px-2 py-0.5 rounded-full font-mono">@event{' + escapeHtml(result.ajoEvent) + '}</span>'
+        : '<span class="ml-2 text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full">sem evento AJO</span>';
 
     document.getElementById('main-content').innerHTML =
         '<div class="fade-in max-w-7xl mx-auto">' +
@@ -295,9 +371,13 @@ function selectWpp(journey, act) {
             '<div class="p-4"><pre class="json-viewer">' + highlightVars(rawStr) + '</pre></div></div>' +
             '<div class="bg-white rounded-xl shadow-md overflow-hidden border border-lima-teal/20">' +
             '<div class="p-4 border-b border-slate-100 flex items-center justify-between">' +
-            '<h3 class="font-bold text-lima-teal"><i class="fa-solid fa-wand-magic-sparkles mr-2"></i> Payload AJO (mapeado)' + noDeParaBadge + '</h3>' +
-            '<button onclick="copyCurrent()" class="bg-lima-teal hover:bg-lima-dark text-white px-3 py-1.5 rounded-lg text-sm transition-colors">' +
-            '<i class="fa-regular fa-copy mr-1"></i> Copiar</button></div>' +
+            '<h3 class="font-bold text-lima-teal"><i class="fa-solid fa-wand-magic-sparkles mr-2"></i> Payload AJO (mapeado)' + eventBadge + '</h3>' +
+            '<div class="flex items-center gap-2">' +
+            '<button onclick="copyAjoString()" title="Copia o JSON como uma string escapada entre aspas" class="bg-lima-teal hover:bg-lima-dark text-white px-3 py-1.5 rounded-lg text-sm transition-colors">' +
+            '<i class="fa-regular fa-copy mr-1"></i> Copiar string</button>' +
+            '<button onclick="copyAjoJson()" title="Copia o JSON identado" class="bg-white border border-lima-teal text-lima-teal hover:bg-lima-light px-3 py-1.5 rounded-lg text-sm transition-colors">' +
+            '<i class="fa-regular fa-copy mr-1"></i> JSON</button>' +
+            '</div></div>' +
             '<div class="p-4"><pre class="json-viewer">' + highlightVars(ajoStr) + '</pre></div></div>' +
         '</div></div>';
 }
@@ -311,6 +391,7 @@ function setView(view) {
     envToggle.classList.toggle('hidden', view !== 'whatsapp');
     envToggle.classList.toggle('flex', view === 'whatsapp');
     document.getElementById('searchInput').value = '';
+    updateQasPanel();
     buildSidebar('');
     resetMain();
 }
@@ -333,13 +414,58 @@ function updateViewTabs() {
 function setBotEnv(env) {
     currentBotEnv = env;
     updateEnvButtons();
-    if (selectedWpp) {
-        const journey = (WPP[Object.keys(WPP).find(bu =>
-            (WPP[bu] || []).some(j => j.journeyId === selectedWpp.journeyId))] || [])
-            .find(j => j.journeyId === selectedWpp.journeyId);
-        const act = journey && (journey.whatsappActivities || []).find(a => a.activityId === selectedWpp.activityId);
-        if (journey && act) selectWpp(journey, act);
+    updateQasPanel();
+    rerenderCurrentWpp();
+}
+
+// Seleção WhatsApp atual como { journey, act } (ou null).
+function currentSelection() {
+    if (!selectedWpp) return null;
+    const bu = Object.keys(WPP).find(b => (WPP[b] || []).some(j => j.journeyId === selectedWpp.journeyId));
+    const journey = bu && (WPP[bu] || []).find(j => j.journeyId === selectedWpp.journeyId);
+    const act = journey && (journey.whatsappActivities || []).find(a => a.activityId === selectedWpp.activityId);
+    return (journey && act) ? { journey, act } : null;
+}
+
+// Re-renderiza a jornada WhatsApp selecionada (reflete toggle PRD/QAS e overrides QAS).
+function rerenderCurrentWpp() {
+    const sel = currentSelection();
+    if (sel) selectWpp(sel.journey, sel.act);
+}
+
+// Overrides globais QAS: grava o valor e re-renderiza o payload AJO na hora.
+// Os inputs ficam na barra QAS (fora do main-content), então o foco não se perde.
+function setQasOverride(key, value) {
+    QAS_OVERRIDES[key] = value;
+    rerenderCurrentWpp();
+}
+
+// Mostra/esconde a barra de overrides (só WhatsApp + QAS) e pré-preenche o namespace.
+function updateQasPanel() {
+    const el = document.getElementById('qas-overrides');
+    if (!el) return;
+    const show = currentView === 'whatsapp' && currentBotEnv === 'QAS';
+    el.classList.toggle('hidden', !show);
+    if (show) {
+        const nsInput = document.getElementById('qas-ns');
+        if (nsInput && !nsInput.value) {
+            nsInput.value = firstNamespace();
+            QAS_OVERRIDES.namespaceId = nsInput.value;
+        }
     }
+}
+
+// Primeiro namespaceId dos payloads (já limpo), p/ pré-preencher o override.
+function firstNamespace() {
+    for (const bu in WPP) {
+        for (const j of (WPP[bu] || [])) {
+            for (const act of (j.whatsappActivities || [])) {
+                const ns = act.payload && act.payload.namespaceId;
+                if (ns) return cleanInvisible(ns);
+            }
+        }
+    }
+    return '';
 }
 
 function updateEnvButtons() {
@@ -351,9 +477,6 @@ function updateEnvButtons() {
 
 // ============================ Init ============================
 document.addEventListener('DOMContentLoaded', () => {
-    if (AJO_EVENT_PREFIX.indexOf('__PREENCHER__') !== -1) {
-        document.getElementById('prefix-banner').classList.remove('hidden');
-    }
     updateEnvButtons();
     document.getElementById('searchInput').addEventListener('input', e => buildSidebar(e.target.value));
     setView('depara');

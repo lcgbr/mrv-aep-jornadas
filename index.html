@@ -66,10 +66,30 @@
         </div>
     </header>
 
-    <!-- Banner de prefixo pendente -->
-    <div id="prefix-banner" class="hidden bg-amber-100 border-b border-amber-300 text-amber-800 text-sm px-6 py-2 flex-shrink-0">
-        <i class="fa-solid fa-triangle-exclamation mr-2"></i>
-        Defina <code class="font-mono font-semibold">AJO_EVENT_PREFIX</code> no <code class="font-mono">build_site.py</code> e regere o site — as variáveis WhatsApp estão usando um prefixo placeholder.
+    <!-- Overrides globais QAS (só na visão WhatsApp + QAS) -->
+    <div id="qas-overrides" class="hidden flex-shrink-0 bg-amber-50 border-b border-amber-200 px-6 py-2">
+        <div class="flex items-center gap-x-5 gap-y-2 flex-wrap text-xs">
+            <span class="font-semibold text-amber-800"><i class="fa-solid fa-flask mr-1"></i>Overrides QAS (aplicam a TODOS os payloads):</span>
+            <label class="flex items-center gap-1.5 text-slate-600">
+                userNumber
+                <input id="qas-user" type="text" placeholder="ex.: 5551993173113" oninput="setQasOverride('userNumber', this.value)"
+                    class="px-2 py-1 rounded border border-amber-300 w-44 outline-none focus:border-lima-teal focus:ring-2 focus:ring-lima-teal/20">
+            </label>
+            <label class="flex items-center gap-1.5 text-slate-600">
+                templateName
+                <input id="qas-template" type="text" placeholder="(auto: _prd→_qas)" oninput="setQasOverride('templateName', this.value)"
+                    class="px-2 py-1 rounded border border-amber-300 w-56 font-mono outline-none focus:border-lima-teal focus:ring-2 focus:ring-lima-teal/20">
+            </label>
+            <label class="flex items-center gap-1.5 text-slate-600">
+                namespaceId
+                <input id="qas-ns" type="text" oninput="setQasOverride('namespaceId', this.value)"
+                    class="px-2 py-1 rounded border border-amber-300 w-72 font-mono outline-none focus:border-lima-teal focus:ring-2 focus:ring-lima-teal/20">
+            </label>
+            <label class="flex items-center gap-1.5 text-slate-600 cursor-pointer select-none">
+                <input id="qas-suffix" type="checkbox" checked onchange="setQasOverride('suffixSwap', this.checked)" class="accent-lima-teal">
+                trocar sufixo <code class="text-amber-700">_prd</code> → <code class="text-amber-700">_qas</code>
+            </label>
+        </div>
     </div>
 
     <!-- LAYOUT: sidebar + main -->
@@ -117,7 +137,16 @@
         Copiado para a área de transferência!
     </div>
 
-    <script src="./data.js"></script>
-    <script src="./app.js"></script>
+    <!-- Loader com cache-busting só em localhost (dev): evita ter que dar Ctrl+F5 a
+         cada mudança. No GitHub Pages usa cache normal (com revalidação). document.write
+         mantém a ordem síncrona (data.js antes de app.js) e o timing do DOMContentLoaded. -->
+    <script>
+        (function () {
+            var dev = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+            var q = dev ? ('?v=' + Date.now()) : '';
+            document.write('<script src="./data.js' + q + '"><\/script>');
+            document.write('<script src="./app.js' + q + '"><\/script>');
+        })();
+    </script>
 </body>
 </html>
