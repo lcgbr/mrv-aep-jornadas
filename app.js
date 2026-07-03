@@ -58,9 +58,36 @@ function copyToClipboard(text, msg) {
 // Duas formas de copiar o payload AJO. Padrão = STRING: JSON compacto (1 linha, sem
 // espaços) escapado e entre aspas, ex.: "{\"templateName\":...}". JSON.stringify já
 // escapa qualquer controle; .trim() garante zero espaço/quebra de linha nas pontas.
+// Escapa um trecho de texto para caber num literal de string do AJO ("...").
+// Barra invertida primeiro, depois aspas (ordem importa p/ não re-escapar).
+function escapeForAjoString(s) {
+    return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+// Payload AJO (objeto) -> expressão concat([...]) p/ colar no jsonValue do Custom Action.
+// Cada @event{...} vira uma ENTRADA sem aspas; o texto estático ao redor vira entrada
+// string (aspas escapadas). Vars residuais {{Event...}} (SEM DESTINO) ficam DENTRO do
+// literal — não são expressão AJO válida; resolver o de-para antes de usar.
+function buildConcatExpression(payload) {
+    const json = JSON.stringify(payload || {});   // JSON compacto (1 linha)
+    const re = /@event\{[^}]+\}/g;
+    const entries = [];
+    let last = 0, m;
+    while ((m = re.exec(json)) !== null) {
+        const lit = json.slice(last, m.index);
+        if (lit) entries.push('"' + escapeForAjoString(lit) + '"');
+        entries.push(m[0]);                        // @event{...} sem aspas
+        last = m.index + m[0].length;
+    }
+    const tail = json.slice(last);
+    if (tail) entries.push('"' + escapeForAjoString(tail) + '"');
+    if (entries.length === 0) entries.push('""');
+    return 'concat([' + entries.join(',') + '])';
+}
+
+// Cópia principal p/ AJO: expressão concat([...]) (cada variável @event vira 1 entrada).
 function copyAjoString() {
-    const compact = JSON.stringify(currentAjoPayload || {});
-    copyToClipboard(JSON.stringify(compact).trim(), 'Copiado como string!');
+    copyToClipboard(buildConcatExpression(currentAjoPayload || {}).trim(), 'Copiado como concat!');
 }
 function copyAjoJson() {
     copyToClipboard((currentAjoStr || '').trim(), 'Copiado como JSON!');
@@ -159,9 +186,10 @@ function mapToAjoFormat(journey, act) {
     let namespaceId = cleanInvisible(sfmc.namespaceId);
     if (qas && QAS_OVERRIDES.namespaceId.trim()) namespaceId = QAS_OVERRIDES.namespaceId.trim();
 
-    // userNumber: em QAS com número de teste preenchido, usa o fixo (sem converter var).
+    // userNumber: número de teste (PRD ou QAS) tem prioridade sobre o {{Event...}}.
+    // Diferente dos outros overrides, este NÃO é gated em QAS — vale nos dois ambientes.
     let userNumber;
-    if (qas && QAS_OVERRIDES.userNumber.trim()) {
+    if (QAS_OVERRIDES.userNumber.trim()) {
         userNumber = QAS_OVERRIDES.userNumber.trim();
     } else {
         userNumber = convertVar(sfmc.userNumber || '', deParaFields, ajoEvent, warnings);
@@ -373,8 +401,8 @@ function selectWpp(journey, act) {
             '<div class="p-4 border-b border-slate-100 flex items-center justify-between">' +
             '<h3 class="font-bold text-lima-teal"><i class="fa-solid fa-wand-magic-sparkles mr-2"></i> Payload AJO (mapeado)' + eventBadge + '</h3>' +
             '<div class="flex items-center gap-2">' +
-            '<button onclick="copyAjoString()" title="Copia o JSON como uma string escapada entre aspas" class="bg-lima-teal hover:bg-lima-dark text-white px-3 py-1.5 rounded-lg text-sm transition-colors">' +
-            '<i class="fa-regular fa-copy mr-1"></i> Copiar string</button>' +
+            '<button onclick="copyAjoString()" title="Copia a expressão concat([...]) para colar no jsonValue do Custom Action AJO (cada @event vira uma entrada da lista)" class="bg-lima-teal hover:bg-lima-dark text-white px-3 py-1.5 rounded-lg text-sm transition-colors">' +
+            '<i class="fa-regular fa-copy mr-1"></i> Copiar concat</button>' +
             '<button onclick="copyAjoJson()" title="Copia o JSON identado" class="bg-white border border-lima-teal text-lima-teal hover:bg-lima-light px-3 py-1.5 rounded-lg text-sm transition-colors">' +
             '<i class="fa-regular fa-copy mr-1"></i> JSON</button>' +
             '</div></div>' +
@@ -444,9 +472,12 @@ function setQasOverride(key, value) {
 function updateQasPanel() {
     const el = document.getElementById('qas-overrides');
     if (!el) return;
-    const show = currentView === 'whatsapp' && currentBotEnv === 'QAS';
-    el.classList.toggle('hidden', !show);
-    if (show) {
+    const wa = currentView === 'whatsapp';
+    el.classList.toggle('hidden', !wa);            // barra aparece em PRD e QAS (visão WhatsApp)
+    const qas = currentBotEnv === 'QAS';
+    const only = document.getElementById('qas-only');   // templateName/namespaceId/sufixo só em QAS
+    if (only) only.style.display = qas ? 'contents' : 'none';
+    if (wa && qas) {
         const nsInput = document.getElementById('qas-ns');
         if (nsInput && !nsInput.value) {
             nsInput.value = firstNamespace();
