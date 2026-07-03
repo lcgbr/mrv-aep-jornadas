@@ -3,6 +3,12 @@
 
 const DEPARA = window.DEPARA_DATA || [];
 const WPP = window.WPP_DATA || {};
+// Jornadas Infobip (gestao-vendas-p) entram no WPP p/ reaproveitar lista/busca/seleção.
+// Cada envio é uma pseudo-atividade com _infobip (payload no formato-alvo Infobip).
+const INFOBIP_DATA = window.INFOBIP_DATA || {};
+Object.keys(INFOBIP_DATA).forEach(function (bu) {
+    WPP[bu] = (WPP[bu] || []).concat(INFOBIP_DATA[bu] || []);
+});
 const CFG = window.SITE_CONFIG || {};
 const BOT_NUMBERS = CFG.botNumbers || { PRD: {}, QAS: {} };
 const PHONE_XDM = CFG.phoneXdm || '_mrv.identityEvents.phone';
@@ -361,9 +367,37 @@ function selectDePara(id) {
 }
 
 // ============================ Render: WhatsApp ============================
+// Render do payload Infobip (WhatsApp) — formato próprio {messages:[...]}, diferente do
+// MariaRosa. Variáveis (corpo, to, callbackData, mídia) são STRING CONSTANTE (nome do
+// campo) por ora, até o de-para. Reaproveita as cópias concat/JSON (currentAjoPayload).
+function renderInfobip(journey, act) {
+    const payload = { messages: [act._infobip] };
+    currentAjoPayload = payload;
+    currentAjoStr = JSON.stringify(payload, null, 2);
+    document.getElementById('main-content').innerHTML =
+        '<div class="fade-in max-w-4xl mx-auto">' +
+        '<h2 class="text-2xl font-bold text-slate-900 mb-1">' + escapeHtml(act.templateName || act.activityKey) +
+        '<span class="ml-2 align-middle text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full">Infobip · WhatsApp</span></h2>' +
+        '<p class="text-slate-500 mb-4">' + escapeHtml(journey.bu + ' / ' + journey.journeyName) + '</p>' +
+        '<div class="mb-4 bg-amber-50 border border-amber-300 rounded-lg p-3 text-sm text-amber-900">' +
+        '<i class="fa-solid fa-circle-info mr-1"></i> Variáveis (corpo, <code class="text-amber-700">to</code>, ' +
+        '<code class="text-amber-700">callbackData</code> e mídia) estão como <b>string constante</b> (nome do campo) até o mapeamento de-para.</div>' +
+        '<div class="bg-white rounded-xl shadow-md overflow-hidden border border-lima-teal/20">' +
+        '<div class="p-4 border-b border-slate-100 flex items-center justify-between">' +
+        '<h3 class="font-bold text-lima-teal"><i class="fa-brands fa-whatsapp mr-2"></i> Payload Infobip</h3>' +
+        '<div class="flex items-center gap-2">' +
+        '<button onclick="copyAjoString()" title="Copia a expressão concat([...]) do payload Infobip para colar no jsonValue do Custom Action" class="bg-lima-teal hover:bg-lima-dark text-white px-3 py-1.5 rounded-lg text-sm transition-colors">' +
+        '<i class="fa-regular fa-copy mr-1"></i> Copiar concat</button>' +
+        '<button onclick="copyAjoJson()" title="Copia o JSON identado" class="bg-white border border-lima-teal text-lima-teal hover:bg-lima-light px-3 py-1.5 rounded-lg text-sm transition-colors">' +
+        '<i class="fa-regular fa-copy mr-1"></i> JSON</button>' +
+        '</div></div>' +
+        '<div class="p-4"><pre class="json-viewer">' + highlightVars(currentAjoStr) + '</pre></div></div></div>';
+}
+
 function selectWpp(journey, act) {
     selectedWpp = { journeyId: journey.journeyId, activityId: act.activityId };
     buildSidebar(document.getElementById('searchInput').value);
+    if (act._infobip) return renderInfobip(journey, act);
 
     const result = mapToAjoFormat(journey, act);
     const rawStr = JSON.stringify(act.payload || {}, null, 2);

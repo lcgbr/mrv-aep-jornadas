@@ -95,6 +95,7 @@ PROPOSED_FIELD_MAP = {
 # ----------------------------------------------------------------------------
 DE_PARA_DIR = Path(r"d:\Projetos\clientes\MRV\AEP\docs_markdown\de_para_jornadas")
 PAYLOADS_DIR = Path(r"d:\Projetos\clientes\MRV\AJO\mrv-sfmc-ajo-migration\whatsapp_payloads")
+INFOBIP_DIR = Path(r"d:\Projetos\clientes\MRV\AJO\mrv-sfmc-ajo-migration\whatsapp_payloads_infobip")
 AJO_EVENTS_DIR = Path(r"d:\Projetos\clientes\MRV\AJO")  # unitary_events_AJO_*.json
 OUT_DATA = Path(__file__).resolve().parent / "data.js"
 
@@ -309,6 +310,40 @@ def build_wpp(payloads_dir: Path, de_para_index: list, ajo_map: dict):
     return data_by_bu
 
 
+def build_infobip(infobip_dir: Path):
+    """Lê whatsapp_payloads_infobip/ (payloads no formato-alvo Infobip, SEM segredos) e
+    monta bu -> [jornadas], cada envio virando uma pseudo-atividade com _infobip=message
+    (p/ reaproveitar lista/seleção da visão WhatsApp)."""
+    idx = infobip_dir / "_indice_infobip.json"
+    if not idx.exists():
+        print(f"[infobip] índice não encontrado: {idx}")
+        return {}
+    data = json.loads(idx.read_text(encoding="utf-8"))
+    by_bu, total_sends = {}, 0
+    for j in data.get("jornadas", []):
+        bu, jid = j["bu"], j["journeyId"]
+        fp = infobip_dir / f"{jid}.json"
+        if not fp.exists():
+            continue
+        jd = json.loads(fp.read_text(encoding="utf-8"))
+        acts = []
+        for i, s in enumerate(jd.get("sends", [])):
+            msg = s.get("message") or {}
+            acts.append({
+                "activityId": f"{jid}::{i}",
+                "activityKey": f"IB-{i + 1}",
+                "templateName": (msg.get("template") or {}).get("templateName") or s.get("activityName") or "",
+                "_infobip": msg,
+            })
+        total_sends += len(acts)
+        by_bu.setdefault(bu, []).append({
+            "journeyId": jid, "journeyName": jd.get("journeyName"), "bu": bu,
+            "_provider": "infobip", "whatsappActivities": acts,
+        })
+    print(f"[infobip] {sum(len(v) for v in by_bu.values())} jornadas; {total_sends} envios")
+    return by_bu
+
+
 # ----------------------------------------------------------------------------
 def main():
     if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
@@ -321,6 +356,7 @@ def main():
         ajo_map[k] = PROPOSED_EVENTS[k]
     print(f"[ajo] +{len(added)} nomes propostos aplicados (lacunas sem evento real)")
     wpp_data = build_wpp(PAYLOADS_DIR, depara_index, ajo_map)
+    infobip_data = build_infobip(INFOBIP_DIR)
 
     config = {
         "phoneXdm": PHONE_XDM,
@@ -332,6 +368,7 @@ def main():
         "// GERADO por build_site.py — não editar à mão.\n"
         f"window.DEPARA_DATA = {json.dumps(depara_list, ensure_ascii=False)};\n"
         f"window.WPP_DATA = {json.dumps(wpp_data, ensure_ascii=False)};\n"
+        f"window.INFOBIP_DATA = {json.dumps(infobip_data, ensure_ascii=False)};\n"
         f"window.SITE_CONFIG = {json.dumps(config, ensure_ascii=False)};\n"
     )
     OUT_DATA.write_text(content, encoding="utf-8")
