@@ -56,6 +56,40 @@ PROPOSED_EVENTS = {
     "sensiarenegociacao": "MRV_FTP_Sen_Renegociacao",
 }
 
+# Override central de de-para de CAMPOS (corpo/botão) que não vêm das fichas.
+# Chave = nome do evento AJO; valor = { campo_minusculo: destino }.
+# Destino = caminho XDM (vira @event{evento.destino}) OU, se NÃO for caminho XDM
+# (ex.: texto com espaço), valor ESTÁTICO literal — o app.js decide via isXdmPath.
+PROPOSED_FIELD_MAP = {
+    "MRV_FTP_Whats_Antecipacao_Prem": {
+        "nome": "person.name.fullName",
+        "desconto": "_mrv.contractBillingEvent.discountAmount",
+        "prazo": "_mrv.contractBillingEvent.deadline",
+        "quero economizar": "Quero economizar",   # estático (payload fixo do botão)
+    },
+    "MRV_FTP_Contrato_Pend_Assin": {
+        "nome": "person.name.fullName",
+        "nome_empreendimento": "_mrv.condominiumEvent.buildingName",
+    },
+    "MRV_FTP_Direcionamento_CCA": {
+        "cliente": "_mrv.productOffer.clientCCA",
+        "nome_cca": "_mrv.productOffer.nameCCA",
+    },
+    "MRV_FTP_Disp_Oferta_Parc": {"primeiro_nome": "person.name.firstName"},
+    "MRV_FTP_Disp_Pesq_NPS": {"nome": "person.name.fullName"},
+    "MRV_FTP_Disp_Pesq_Recl_Aqui": {"nome": "person.name.fullName"},
+    "MRV_FTP_Disp_Relancamento": {"empreendimento": "_mrv.condominiumEvent.buildingName"},
+    "MRV_FTP_Disparo_Divulg_Armario": {
+        "primeiro_nome": "person.name.firstName",
+        "empreendimento": "_mrv.condominiumEvent.buildingName",
+    },
+    "MRV_FTP_Disparo_Serv_Morador": {"primeiro_nome": "person.name.firstName"},
+    "MRV_FTP_Semi_Aut_Lancamento": {
+        "primeiro_nome": "person.name.firstName",
+        "empreendimento": "_mrv.condominiumEvent.buildingName",
+    },
+}
+
 # ----------------------------------------------------------------------------
 # Fontes (ajuste se rodar fora da máquina de origem)
 # ----------------------------------------------------------------------------
@@ -256,6 +290,13 @@ def build_wpp(payloads_dir: Path, de_para_index: list, ajo_map: dict):
             source_event = (entry["sourceEventType"] if entry else "") or ""
         journey["_deParaFields"] = entry["fields_map"] if entry else {}
         journey["_ajoEvent"] = ajo_map.get(source_event.strip().lower())  # nome do evento ou None
+
+        # Override central de campos mapeados à mão (vence o de-para das fichas).
+        _ev = journey["_ajoEvent"]
+        if _ev and _ev in PROPOSED_FIELD_MAP:
+            _merged = dict(journey["_deParaFields"])
+            _merged.update(PROPOSED_FIELD_MAP[_ev])
+            journey["_deParaFields"] = _merged
 
         if journey["_deParaFields"]:
             matched += 1

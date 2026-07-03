@@ -112,7 +112,8 @@ function convertVar(str, deParaFields, ajoEvent, warnings) {
     if (!str) return str;
     return str.replace(SF_VAR_RE, function (full, field) {
         const xdm = ajoEvent ? resolveXdm(field, deParaFields) : null;
-        if (xdm) return '@event{' + ajoEvent + '.' + xdm + '}';
+        // caminho XDM -> @event{}; valor não-XDM (ex.: texto do de-para) -> literal estático.
+        if (xdm) return isXdmPath(xdm) ? ('@event{' + ajoEvent + '.' + xdm + '}') : xdm;
         if (warnings && warnings.indexOf(full) === -1) warnings.push(full);
         return full; // fallback: mantém {{Event...}} original
     });
