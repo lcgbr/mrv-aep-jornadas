@@ -334,11 +334,12 @@ def build_infobip(infobip_dir: Path):
                 "activityKey": f"IB-{i + 1}",
                 "templateName": (msg.get("template") or {}).get("templateName") or s.get("activityName") or "",
                 "_infobip": msg,
+                "_review": s.get("_review") or [],
             })
         total_sends += len(acts)
         by_bu.setdefault(bu, []).append({
             "journeyId": jid, "journeyName": jd.get("journeyName"), "bu": bu,
-            "_provider": "infobip", "whatsappActivities": acts,
+            "_provider": "infobip", "_status": jd.get("status"), "whatsappActivities": acts,
         })
     print(f"[infobip] {sum(len(v) for v in by_bu.values())} jornadas; {total_sends} envios")
     return by_bu

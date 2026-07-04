@@ -374,11 +374,20 @@ function renderInfobip(journey, act) {
     const payload = { messages: [act._infobip] };
     currentAjoPayload = payload;
     currentAjoStr = JSON.stringify(payload, null, 2);
+    const draftBadge = journey._status === 'Draft'
+        ? '<span class="ml-2 align-middle text-xs bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full">Draft</span>' : '';
+    const review = act._review || [];
+    const reviewHtml = review.length
+        ? '<div class="mb-4 bg-orange-50 border border-orange-300 rounded-lg p-3 text-sm text-orange-900">' +
+          '<div class="font-bold mb-1"><i class="fa-solid fa-triangle-exclamation mr-1"></i>Revisar (' + review.length + '):</div>' +
+          '<ul class="list-disc list-inside">' + review.map(function (r) { return '<li>' + escapeHtml(r) + '</li>'; }).join('') + '</ul></div>'
+        : '';
     document.getElementById('main-content').innerHTML =
         '<div class="fade-in max-w-4xl mx-auto">' +
         '<h2 class="text-2xl font-bold text-slate-900 mb-1">' + escapeHtml(act.templateName || act.activityKey) +
-        '<span class="ml-2 align-middle text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full">Infobip · WhatsApp</span></h2>' +
+        '<span class="ml-2 align-middle text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full">Infobip · WhatsApp</span>' + draftBadge + '</h2>' +
         '<p class="text-slate-500 mb-4">' + escapeHtml(journey.bu + ' / ' + journey.journeyName) + '</p>' +
+        reviewHtml +
         '<div class="mb-4 bg-amber-50 border border-amber-300 rounded-lg p-3 text-sm text-amber-900">' +
         '<i class="fa-solid fa-circle-info mr-1"></i> Variáveis (corpo, <code class="text-amber-700">to</code>, ' +
         '<code class="text-amber-700">callbackData</code> e mídia) estão como <b>string constante</b> (nome do campo) até o mapeamento de-para.</div>' +
