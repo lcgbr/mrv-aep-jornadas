@@ -61,32 +61,295 @@ PROPOSED_EVENTS = {
 # Destino = caminho XDM (vira @event{evento.destino}) OU, se NÃO for caminho XDM
 # (ex.: texto com espaço), valor ESTÁTICO literal — o app.js decide via isXdmPath.
 PROPOSED_FIELD_MAP = {
-    "MRV_FTP_Whats_Antecipacao_Prem": {
+    "MRV_FTP_Abatimento_Negoc": {
         "nome": "person.name.fullName",
-        "desconto": "_mrv.contractBillingEvent.discountAmount",
-        "prazo": "_mrv.contractBillingEvent.deadline",
-        "quero economizar": "Quero economizar",   # estático (payload fixo do botão)
+    },
+    "MRV_FTP_Agend_Entreg_Chaves": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Agend_VA_Sindico": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Agend_Visto_Antecip": {
+        "horarios": "_mrv.earlyInspectionDetails.scheduledTime",
+        "nome": "person.name.fullName",
+        "tempo": "_mrv.earlyInspectionDetails.elapsedTime",
+    },
+    "MRV_FTP_Agendamento_VA": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Antecipar_Wpp2": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Aquecimento_Lanc": {
+        "empreendimento": "_mrv.condominiumEvent.buildingName",
+        "primeiro_nome": "person.name.firstName",
+    },
+    "MRV_FTP_Assembleia": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Ativo_Zendesk": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Auto_Agend": {
+        "momento": "_mrv.ftpFileImport.sendMoment",
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Campanha_Final_Ano": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Cob_Notif_Judicial": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Cob_Wedo_Email": {
+        "bairro_cliente": "_mrv.customerAddress.neighborhood",
+        "cep_cliente": "_mrv.customerAddress.postalCode",
+        "cidade_cliente": "_mrv.customerAddress.city",
+        "descricao_residencial": "_mrv.propertyContext.residentialDescription",
+        "endereco_cliente": "_mrv.customerAddress.street",
+        "estado_cliente": "_mrv.customerAddress.state",
+        "nome_cliente": "person.name.fullName",
+        "nome_completo": "person.name.fullName",
+        "prev_assinat_banco": "_mrv.contractBillingEvent.bankSignatureForecastDate",
+        "previsao_chaves": "_mrv.contractBillingEvent.keysDeliveryForecastDate",
+        "residencial": "_mrv.condominiumEvent.buildingName",
+    },
+    "MRV_FTP_Cobranca_Luggo": {
+        "abertura_sinistro": "_mrv.contractBillingEvent.claimOpenedIndicator",
+        "adicionado_a_base": "_mrv.ftpFileImport.recordCreatedDate",
+        "cliente": "person.name.fullName",
+        "dias_de_atraso": "_mrv.contractBillingEvent.lateDays",
+        "dt_pagamento": "_mrv.contractBillingEvent.paymentDate",
+        "dt_sms": "_mrv.contractBillingEvent.smsDate",
+        "indicador_de_cobranca": "_mrv.contractBillingEvent.collectionIndicator",
+        "mes": "_mrv.contractBillingEvent.referenceMonth",
+        "motivo_impedimento": "_mrv.contractBillingEvent.impedimentReason",
+        "residencial": "_mrv.condominiumEvent.buildingName",
+        "tipo_contrato": "_mrv.contractBillingEvent.contractType",
+        "valor_pago": "_mrv.contractBillingEvent.paidAmount",
+    },
+    "MRV_FTP_Cobranca_Reneg_Fev": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Comunic_Reneg": {
+        "nome": "person.name.fullName",
     },
     "MRV_FTP_Contrato_Pend_Assin": {
         "nome": "person.name.fullName",
         "nome_empreendimento": "_mrv.condominiumEvent.buildingName",
     },
+    "MRV_FTP_Convoc_Elei_PA": {
+        "nome": "person.name.fullName",
+    },
     "MRV_FTP_Direcionamento_CCA": {
         "cliente": "_mrv.productOffer.clientCCA",
         "nome_cca": "_mrv.productOffer.nameCCA",
     },
-    "MRV_FTP_Disp_Oferta_Parc": {"primeiro_nome": "person.name.firstName"},
-    "MRV_FTP_Disp_Pesq_NPS": {"nome": "person.name.fullName"},
-    "MRV_FTP_Disp_Pesq_Recl_Aqui": {"nome": "person.name.fullName"},
-    "MRV_FTP_Disp_Relancamento": {"empreendimento": "_mrv.condominiumEvent.buildingName"},
-    "MRV_FTP_Disparo_Divulg_Armario": {
+    "MRV_FTP_Disp_Oferta_Parc": {
         "primeiro_nome": "person.name.firstName",
+    },
+    "MRV_FTP_Disp_Pesq_NPS": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Disp_Pesq_Recl_Aqui": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Disp_Relancamento": {
         "empreendimento": "_mrv.condominiumEvent.buildingName",
     },
-    "MRV_FTP_Disparo_Serv_Morador": {"primeiro_nome": "person.name.firstName"},
-    "MRV_FTP_Semi_Aut_Lancamento": {
-        "primeiro_nome": "person.name.firstName",
+    "MRV_FTP_Disparo_Divulg_Armario": {
         "empreendimento": "_mrv.condominiumEvent.buildingName",
+        "primeiro_nome": "person.name.firstName",
+    },
+    "MRV_FTP_Disparo_Serv_Morador": {
+        "empreendimento": "_mrv.condominiumEvent.buildingName",
+        "primeiro_nome": "person.name.firstName",
+    },
+    "MRV_FTP_Email_Agend_VA": {
+        "nome": "person.name.fullName",
+        "tempo": "_mrv.earlyInspectionDetails.elapsedTime",
+    },
+    "MRV_FTP_Envio_Chaves_Fech": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Fin_Bancario": {
+        "nome_cliente": "person.name.fullName",
+        "produto": "_mrv.propertyContext.productName",
+        "valorização": "_mrv.propertyContext.appreciation",
+    },
+    "MRV_FTP_Implant_Condominio": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Jor_CRI_V2": {
+        "marca": "_mrv.earlyInspectionDetails.brand",
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Jor_Inicio_Obra": {
+        "nome_cliente": "person.name.fullName",
+    },
+    "MRV_FTP_Jor_Sindico": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Juros_Prim_cobranca": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Lembrete_Jur_Obra": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_NPS_Prof_Aten_Sind": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Notif_Alien_Fidu": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Orient_Sind_Visto": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Parcel_ITBI_Reg": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Patrim_Comis_Afet": {
+        "obra": "_mrv.propertyContext.constructionName",
+    },
+    "MRV_FTP_Pend_Aditivo": {
+        "nome do cliente": "person.name.fullName",
+    },
+    "MRV_FTP_Pesq_Implant": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Pesquisa_Imp_Chave": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Prazo_Encerrando_7d": {
+        "empreendimento": "_mrv.condominiumEvent.buildingName",
+        "nome": "person.name.fullName",
+        "primeiro_nome": "person.name.firstName",
+    },
+    "MRV_FTP_Premio_Reclame": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Reagend_Visita": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Regu_PreDist": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Rel_Recl_Aqui": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Reneg_Antecip_Maio2025": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Reneg_Entrada_Multa": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Reneg_SemJuros_Mar2025": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Renegociar_2023": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Semi_Aut_Lancamento": {
+        "empreendimento": "_mrv.condominiumEvent.buildingName",
+        "primeiro_nome": "person.name.firstName",
+    },
+    "MRV_FTP_Sen_BoasVindas": {
+        "ganho_pre_ganho": "_mrv.propertyContext.saleStatus",
+        "nome_cliente": "person.name.fullName",
+        "tipo_contrato": "_mrv.contractBillingEvent.contractType",
+    },
+    "MRV_FTP_Sen_Convoc_Elei_PA": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Sen_Eleic_Comis_PA": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Sen_Implant_Cond": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Sen_Juros_Obra": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Sen_Mia_Agend_Vist": {
+        "nome": "person.name.fullName",
+        "tempo": "_mrv.earlyInspectionDetails.elapsedTime",
+    },
+    "MRV_FTP_Sen_Pos_Assinatura": {
+        "data assinatura": "_mrv.contractBillingEvent.contractSignatureDate",
+        "nome do cliente": "person.name.fullName",
+        "plano financiamento": "_mrv.contractBillingEvent.financingPlan",
+    },
+    "MRV_FTP_Sen_Renegociacao": {
+        "cliente": "person.name.fullName",
+        "primeiro_nome": "person.name.firstName",
+        "unidade": "_mrv.propertyContext.unit",
+    },
+    "MRV_FTP_Sen_Wedo_Email": {
+        "bairro_cliente": "_mrv.customerAddress.neighborhood",
+        "cep_cliente": "_mrv.customerAddress.postalCode",
+        "cidade_cliente": "_mrv.customerAddress.city",
+        "descricao_residencial": "_mrv.propertyContext.residentialDescription",
+        "endereco_cliente": "_mrv.customerAddress.street",
+        "estado_cliente": "_mrv.customerAddress.state",
+        "nome_cliente": "person.name.fullName",
+        "nome_completo": "person.name.fullName",
+        "prev_assinat_banco": "_mrv.contractBillingEvent.bankSignatureForecastDate",
+        "previsao_chaves": "_mrv.contractBillingEvent.keysDeliveryForecastDate",
+        "residencial": "_mrv.condominiumEvent.buildingName",
+    },
+    "MRV_FTP_Troca_Plano": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_VA_Nao_Aptos": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_VA_Reagendamento": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_VA_Reparos_Final": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Visita_Obra_V2": {
+        "bloco": "_mrv.propertyContext.block",
+        "mes": "_mrv.contractBillingEvent.referenceMonth",
+        "nome_cliente": "person.name.fullName",
+    },
+    "MRV_FTP_WPP_Cobranca": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_WPP_Cobranca_Correcao": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_WPP_Reneg": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Whats_Antecipacao": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Whats_Antecipacao_Prem": {
+        "desconto": "_mrv.contractBillingEvent.discountAmount",
+        "nome": "person.name.fullName",
+        "prazo": "_mrv.contractBillingEvent.deadline",
+        "quero economizar": "Quero economizar",
+    },
+    "MRV_FTP_Whats_Confirm_Negoc": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Whats_Notif_Reint_Poss": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Whats_Pague5_Ganhe1": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Whats_VA_Indisponivel": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_Wpp_Aditivo": {
+        "nome": "person.name.fullName",
+    },
+    "MRV_FTP_lancamento_Aut_Corr": {
+        "empreendimento": "_mrv.condominiumEvent.buildingName",
+        "primeiro_nome": "person.name.firstName",
     },
 }
 
