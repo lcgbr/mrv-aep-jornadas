@@ -26,33 +26,33 @@ BOT_NUMBERS = {
 # sourceEventType (lower). Só preenche lacunas: eventos reais do JSON têm prioridade.
 PROPOSED_EVENTS = {
     "assistenciatecnicaagendamentovistoriaantecipada": "MRV_FTP_Agend_Visto_Antecip",
-    "assistenciatecnicaimplantacaocondominio": "MRV_FTP_Implant_Condominio",
+    "assistenciatecnicaimplantacaocondominio": "MRV_FTP_Implant_Cond",
     "assistenciatecnicawhatsnpsprofissionalatencaosindico": "MRV_FTP_NPS_Prof_Aten_Sind",
     "assistenciatecnicawhatsappvareagendamento": "MRV_FTP_VA_Reagendamento",
     "assistenciatecnicawhatsappvareparosfinalizados": "MRV_FTP_VA_Reparos_Final",
     "assistenciatecnicawhatsenviochavesfechaduraeletronica": "MRV_FTP_Envio_Chaves_Fech",
     "cobrancaanteciparwpp2": "MRV_FTP_Antecipar_Wpp2",
-    "cobrancajbwedoemail": "MRV_FTP_Cob_Wedo_Email",
-    "cobrancacobrancaluggo": "MRV_FTP_Cobranca_Luggo",
+    "cobrancajbwedoemail": "MRV_FTP_JB_Wedo_Email",
+    "cobrancacobrancaluggo": "MRV_FTP_Jor_Cob_Luggo",
     "cobrancawppaditivo": "MRV_FTP_Wpp_Aditivo",
     "cobrancawhatsabatimentonegociacao": "MRV_FTP_Abatimento_Negoc",
     "cobrancawhatsapprenegociar2023": "MRV_FTP_Renegociar_2023",
     "marketplacejraquecimentolancamentos": "MRV_FTP_Aquecimento_Lanc",
-    "relacionamentopatrimoniocomissaoafetacao": "MRV_FTP_Patrim_Comis_Afet",
-    "relacionamentowhatsappdirecionamentocca": "MRV_FTP_Direcionamento_CCA",
-    "relacionamentowhatsappdisparopesquisareclameaqui": "MRV_FTP_Disp_Pesq_Recl_Aqui",
+    "relacionamentopatrimoniocomissaoafetacao": "MRV_FTP_Jor_Patri_Comi_Afet",
+    "relacionamentowhatsappdirecionamentocca": "MRV_FTP_Jor_Whats_Direc_CCA",
+    "relacionamentowhatsappdisparopesquisareclameaqui": "MRV_FTP_Jor_Whats_Pesq_Recl",
     "relacionamentoreagendamentovisita": "MRV_FTP_Reagend_Visita",
     "relacionamentovisitaaobrav2": "MRV_FTP_Visita_Obra_V2",
-    "relacionamentowhatspremioreclame": "MRV_FTP_Premio_Reclame",
-    "relacionamentowhatsappdisparopesquisanps": "MRV_FTP_Disp_Pesq_NPS",
-    "sensiaboasvindasnovasensiaftp": "MRV_FTP_Sen_BoasVindas",
+    "relacionamentowhatspremioreclame": "MRV_FTP_Whats_Premio_Recl",
+    "relacionamentowhatsappdisparopesquisanps": "MRV_FTP_Whats_Disp_Pesq_NPS",
+    "sensiaboasvindasnovasensiaftp": "MRV_FTP_BV_Nov_Jor_Sensia",
     "sensiaeleicaocomissaodepa": "MRV_FTP_Sen_Eleic_Comis_PA",
-    "sensiaimplantacaocondcopy": "MRV_FTP_Sen_Implant_Cond",
-    "sensiajbwedoemail": "MRV_FTP_Sen_Wedo_Email",
-    "sensiaconvocacaoeleicaopa": "MRV_FTP_Sen_Convoc_Elei_PA",
+    "sensiaimplantacaocondcopy": "MRV_FTP_Implant_Cond_Jor",
+    "sensiajbwedoemail": "MRV_FTP_JW_Wedo_Email_Sensia",
+    "sensiaconvocacaoeleicaopa": "MRV_FTP_Jor_Convoc_Eleicao_PA",
     "sensiajurosobra": "MRV_FTP_Sen_Juros_Obra",
-    "sensiamiaagendamentovistoriaporemail": "MRV_FTP_Sen_Mia_Agend_Vist",
-    "sensiaposassinatura": "MRV_FTP_Sen_Pos_Assinatura",
+    "sensiamiaagendamentovistoriaporemail": "MRV_FTP_MIA_Agend_Vist_Email",
+    "sensiaposassinatura": "MRV_FTP_Jor_Pos_Assin",
     "sensiarenegociacao": "MRV_FTP_Sen_Renegociacao",
 }
 
@@ -101,7 +101,7 @@ PROPOSED_FIELD_MAP = {
     "MRV_FTP_Cob_Notif_Judicial": {
         "nome": "person.name.fullName",
     },
-    "MRV_FTP_Cob_Wedo_Email": {
+    "MRV_FTP_JB_Wedo_Email": {
         "bairro_cliente": "_mrv.customerAddress.neighborhood",
         "cep_cliente": "_mrv.customerAddress.postalCode",
         "cidade_cliente": "_mrv.customerAddress.city",
@@ -114,7 +114,7 @@ PROPOSED_FIELD_MAP = {
         "previsao_chaves": "_mrv.contractBillingEvent.keysDeliveryForecastDate",
         "residencial": "_mrv.condominiumEvent.buildingName",
     },
-    "MRV_FTP_Cobranca_Luggo": {
+    "MRV_FTP_Jor_Cob_Luggo": {
         "abertura_sinistro": "_mrv.contractBillingEvent.claimOpenedIndicator",
         "adicionado_a_base": "_mrv.ftpFileImport.recordCreatedDate",
         "cliente": "person.name.fullName",
@@ -141,17 +141,17 @@ PROPOSED_FIELD_MAP = {
     "MRV_FTP_Convoc_Elei_PA": {
         "nome": "person.name.fullName",
     },
-    "MRV_FTP_Direcionamento_CCA": {
+    "MRV_FTP_Jor_Whats_Direc_CCA": {
         "cliente": "_mrv.productOffer.clientCCA",
         "nome_cca": "_mrv.productOffer.nameCCA",
     },
     "MRV_FTP_Disp_Oferta_Parc": {
         "primeiro_nome": "person.name.firstName",
     },
-    "MRV_FTP_Disp_Pesq_NPS": {
+    "MRV_FTP_Whats_Disp_Pesq_NPS": {
         "nome": "person.name.fullName",
     },
-    "MRV_FTP_Disp_Pesq_Recl_Aqui": {
+    "MRV_FTP_Jor_Whats_Pesq_Recl": {
         "nome": "person.name.fullName",
     },
     "MRV_FTP_Disp_Relancamento": {
@@ -177,7 +177,7 @@ PROPOSED_FIELD_MAP = {
         "produto": "_mrv.propertyContext.productName",
         "valorização": "_mrv.propertyContext.appreciation",
     },
-    "MRV_FTP_Implant_Condominio": {
+    "MRV_FTP_Implant_Cond": {
         "nome": "person.name.fullName",
     },
     "MRV_FTP_Jor_CRI_V2": {
@@ -208,7 +208,7 @@ PROPOSED_FIELD_MAP = {
     "MRV_FTP_Parcel_ITBI_Reg": {
         "nome": "person.name.fullName",
     },
-    "MRV_FTP_Patrim_Comis_Afet": {
+    "MRV_FTP_Jor_Patri_Comi_Afet": {
         "obra": "_mrv.propertyContext.constructionName",
     },
     "MRV_FTP_Pend_Aditivo": {
@@ -225,7 +225,7 @@ PROPOSED_FIELD_MAP = {
         "nome": "person.name.fullName",
         "primeiro_nome": "person.name.firstName",
     },
-    "MRV_FTP_Premio_Reclame": {
+    "MRV_FTP_Whats_Premio_Recl": {
         "nome": "person.name.fullName",
     },
     "MRV_FTP_Reagend_Visita": {
@@ -253,28 +253,28 @@ PROPOSED_FIELD_MAP = {
         "empreendimento": "_mrv.condominiumEvent.buildingName",
         "primeiro_nome": "person.name.firstName",
     },
-    "MRV_FTP_Sen_BoasVindas": {
+    "MRV_FTP_BV_Nov_Jor_Sensia": {
         "ganho_pre_ganho": "_mrv.propertyContext.saleStatus",
         "nome_cliente": "person.name.fullName",
         "tipo_contrato": "_mrv.contractBillingEvent.contractType",
     },
-    "MRV_FTP_Sen_Convoc_Elei_PA": {
+    "MRV_FTP_Jor_Convoc_Eleicao_PA": {
         "nome": "person.name.fullName",
     },
     "MRV_FTP_Sen_Eleic_Comis_PA": {
         "nome": "person.name.fullName",
     },
-    "MRV_FTP_Sen_Implant_Cond": {
+    "MRV_FTP_Implant_Cond_Jor": {
         "nome": "person.name.fullName",
     },
     "MRV_FTP_Sen_Juros_Obra": {
         "nome": "person.name.fullName",
     },
-    "MRV_FTP_Sen_Mia_Agend_Vist": {
+    "MRV_FTP_MIA_Agend_Vist_Email": {
         "nome": "person.name.fullName",
         "tempo": "_mrv.earlyInspectionDetails.elapsedTime",
     },
-    "MRV_FTP_Sen_Pos_Assinatura": {
+    "MRV_FTP_Jor_Pos_Assin": {
         "data assinatura": "_mrv.contractBillingEvent.contractSignatureDate",
         "nome do cliente": "person.name.fullName",
         "plano financiamento": "_mrv.contractBillingEvent.financingPlan",
@@ -284,7 +284,7 @@ PROPOSED_FIELD_MAP = {
         "primeiro_nome": "person.name.firstName",
         "unidade": "_mrv.propertyContext.unit",
     },
-    "MRV_FTP_Sen_Wedo_Email": {
+    "MRV_FTP_JW_Wedo_Email_Sensia": {
         "bairro_cliente": "_mrv.customerAddress.neighborhood",
         "cep_cliente": "_mrv.customerAddress.postalCode",
         "cidade_cliente": "_mrv.customerAddress.city",
