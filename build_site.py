@@ -18,7 +18,7 @@ from pathlib import Path
 PHONE_XDM = "_mrv.identityEvents.phone"
 BOT_NUMBERS = {
     "PRD": {"MariaRosa": "553199009000", "BotComercial": "558007289000"},
-    "QAS": {"MariaRosa": "553173160076", "BotComercial": "553173160076"},
+    "QAS": {"MariaRosa": "553197839482", "BotComercial": "553197839482"},
 }
 
 # Nomes de evento AJO PROPOSTOS (ainda não criados no AJO) p/ as jornadas sem evento —
