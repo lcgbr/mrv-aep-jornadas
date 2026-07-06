@@ -249,7 +249,8 @@ function buildSidebar(term) {
                 container.appendChild(sidebarItem(
                     j.title, 'fa-file-lines',
                     selectedDeParaId === j.id,
-                    () => selectDePara(j.id)
+                    () => selectDePara(j.id),
+                    j.missingCount ? ('⚠️ ' + j.missingCount + ' faltando') : null
                 ));
             });
         });
@@ -327,12 +328,18 @@ function selectDePara(id) {
         '<div class="min-w-0"><div class="text-xs uppercase tracking-wide text-slate-400">' + label + '</div>' +
         '<div class="text-sm font-medium text-slate-800 break-words">' + escapeHtml(value || '—') + '</div></div></div>';
 
+    const fieldStatus = f => f.status || (isXdmPath(f.aepField) ? 'ficha' : 'missing');
     const rows = (j.fields || []).map((f, i) => {
-        const warn = !isXdmPath(f.aepField);
+        const st = fieldStatus(f);
+        const missing = st === 'missing', override = st === 'override';
+        const icon = missing ? '<i class="fa-solid fa-triangle-exclamation mr-1"></i>'
+            : override ? '<i class="fa-solid fa-arrow-up-right-dots mr-1"></i>' : '';
+        const ovrBadge = override
+            ? ' <span class="ml-1 text-[10px] bg-lima-light text-lima-teal px-1.5 py-0.5 rounded-full align-middle">atualizado</span>' : '';
         return '<tr class="' + (i % 2 ? 'bg-slate-50' : 'bg-white') + '">' +
             '<td class="px-3 py-2 align-top"><span class="code-chip">' + escapeHtml(f.csvField) + '</span></td>' +
-            '<td class="px-3 py-2 align-top font-mono text-xs ' + (warn ? 'text-lima-orange' : 'text-lima-teal') + '">' +
-            (warn ? '<i class="fa-solid fa-triangle-exclamation mr-1"></i>' : '') + escapeHtml(f.aepField) + '</td>' +
+            '<td class="px-3 py-2 align-top font-mono text-xs ' + (missing ? 'text-lima-orange' : 'text-lima-teal') + '">' +
+            icon + escapeHtml(f.aepField) + ovrBadge + '</td>' +
             '<td class="px-3 py-2 align-top">' + (f.fg && f.fg !== '—'
                 ? '<span class="bg-lima-light text-lima-teal text-xs font-semibold px-2 py-0.5 rounded-full">' + escapeHtml(f.fg) + '</span>'
                 : '<span class="text-slate-300">—</span>') + '</td>' +
@@ -341,10 +348,18 @@ function selectDePara(id) {
             '</tr>';
     }).join('');
 
+    const nMiss = (j.fields || []).filter(f => fieldStatus(f) === 'missing').length;
+    const gs = CFG.deparaStats || {};
+    const globalNote = (gs.missing != null)
+        ? ' · <span class="text-lima-orange font-semibold">' + gs.missing + '</span> atributos faltando em ' + gs.journeysWithMissing + ' jornadas (global)'
+        : '';
+    const missBadge = nMiss
+        ? '<span class="bg-lima-orange text-white text-xs font-semibold px-3 py-1 rounded-full"><i class="fa-solid fa-triangle-exclamation mr-1"></i>' + nMiss + ' faltando</span>'
+        : '<span class="bg-green-100 text-green-700 text-xs font-semibold px-3 py-1 rounded-full">completo</span>';
     document.getElementById('main-content').innerHTML =
         '<div class="fade-in max-w-6xl mx-auto">' +
         '<h2 class="text-2xl font-bold text-slate-900 mb-1">' + escapeHtml(j.title) + '</h2>' +
-        '<p class="text-slate-500 mb-6">Mapeamento de dados (DE-PARA) para o Adobe Experience Platform.</p>' +
+        '<p class="text-slate-500 mb-6">Mapeamento de dados (DE-PARA) para o AEP.' + globalNote + '</p>' +
         '<div class="grid gap-4 mb-6" style="grid-template-columns:repeat(auto-fit,minmax(230px,1fr))">' +
             card('fa-building', 'Business Unit', j.bu) +
             card('fa-bolt', 'eventType', j.eventType) +
@@ -354,7 +369,9 @@ function selectDePara(id) {
         '<div class="bg-white rounded-xl shadow-md overflow-hidden">' +
         '<div class="flex items-center justify-between p-4 border-b border-slate-100">' +
         '<h3 class="font-bold text-lima-teal">Mapeamento de Campos (DE-PARA)</h3>' +
+        '<div class="flex items-center gap-2">' +
         '<span class="bg-lima-teal text-white text-xs font-semibold px-3 py-1 rounded-full">' + (j.fields || []).length + ' campos</span>' +
+        missBadge + '</div>' +
         '</div>' +
         '<div class="overflow-x-auto"><table class="min-w-full text-sm border-collapse">' +
         '<thead class="bg-lima-teal text-white"><tr>' +

@@ -182,6 +182,33 @@ def parse_de_para(de_para_dir: Path):
     return jornadas, index
 
 
+def annotate_depara(depara_list, ajo_map):
+    """Marca cada campo da view DE-PARA com `status`:
+      - 'ficha'    : já mapeado na ficha (aepField é caminho XDM);
+      - 'override' : mapeado pelo PROPOSED_FIELD_MAP (traz as últimas atualizações);
+      - 'missing'  : ainda SEM destino (sinalizado p/ mapear).
+    Aplica o override no aepField e conta faltantes. Retorna estatísticas globais."""
+    tot = ok_ficha = ok_override = missing = 0
+    for j in depara_list:
+        ev = ajo_map.get((j.get("sourceEventType") or "").strip().lower())
+        ovr = PROPOSED_FIELD_MAP.get(ev, {}) if ev else {}
+        for f in j["fields"]:
+            tot += 1
+            if _XDM_PATH_RE.search(f["aepField"]):
+                f["status"] = "ficha"; ok_ficha += 1
+            elif f["csvField"].strip().lower() in ovr:
+                f["aepField"] = ovr[f["csvField"].strip().lower()]
+                f["status"] = "override"; ok_override += 1
+            else:
+                f["status"] = "missing"; missing += 1
+        j["ajoEvent"] = ev
+        j["missingCount"] = sum(1 for f in j["fields"] if f.get("status") == "missing")
+    stats = {"totalFields": tot, "ficha": ok_ficha, "override": ok_override, "missing": missing,
+             "journeysWithMissing": sum(1 for j in depara_list if j.get("missingCount"))}
+    print(f"[de-para] campos: {tot} | ficha {ok_ficha} | override {ok_override} | FALTANDO {missing}")
+    return stats
+
+
 def _norm_bu(s: str) -> str:
     return re.sub(r"[^a-z0-9]", "", (s or "").lower())
 
@@ -356,12 +383,14 @@ def main():
     for k in added:
         ajo_map[k] = PROPOSED_EVENTS[k]
     print(f"[ajo] +{len(added)} nomes propostos aplicados (lacunas sem evento real)")
+    depara_stats = annotate_depara(depara_list, ajo_map)  # aplica override + marca status/faltantes
     wpp_data = build_wpp(PAYLOADS_DIR, depara_index, ajo_map)
     infobip_data = build_infobip(INFOBIP_DIR)
 
     config = {
         "phoneXdm": PHONE_XDM,
         "botNumbers": BOT_NUMBERS,
+        "deparaStats": depara_stats,
     }
 
     OUT_DATA.parent.mkdir(parents=True, exist_ok=True)
