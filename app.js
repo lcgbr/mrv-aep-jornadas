@@ -162,7 +162,12 @@ function mapToAjoFormat(journey, act) {
         }
     });
 
-    (sfmc.templateButton || []).forEach(b => {
+    // Normaliza buttonIndex p/ 0-based (Meta exige). Dados SFMC misturam 0-based e
+    // 1-based; se NENHUM botao do envio tem indice 0, o conjunto e 1-based -> -1
+    // (ex.: chaves_va_reagendamento [1]->[0]; reneg_renegociar [2,1]->[1,0]).
+    const rawButtons = sfmc.templateButton || [];
+    const oneBasedBtns = rawButtons.length > 0 && rawButtons.every(b => (b.buttonIndex || 0) >= 1);
+    rawButtons.forEach(b => {
         // O parâmetro segue o buttonSubtype: url → {type:'text', text}, quick_reply →
         // {type:'payload', payload}. Corrige dados SFMC que guardam a URL em `payload`
         // ou omitem `type` (ex.: botões url NPS/reclame, mia_itbi_prd).
@@ -175,7 +180,7 @@ function mapToAjoFormat(journey, act) {
         if (value) parameter[paramType] = value;
         components.push({
             type: 'button',
-            buttonIndex: b.buttonIndex,
+            buttonIndex: (b.buttonIndex || 0) - (oneBasedBtns ? 1 : 0),
             buttonSubtype: b.buttonSubtype,
             parameters: [parameter]
         });
