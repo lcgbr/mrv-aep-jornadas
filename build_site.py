@@ -56,6 +56,12 @@ PROPOSED_EVENTS = {
     "sensiarenegociacao": "MRV_FTP_Sen_Renegociacao",
 }
 
+# Override de evento AJO por journeyId — jornadas WPP cujo payload não traz sourceEventType
+# próprio (o site casaria por nome e ficaria sem evento). Valor = nome do evento unitário no AJO.
+WPP_EVENT_OVERRIDE = {
+    "a2fc65ea-0e17-4831-b8dc-f12f1a2d1485": "Vistoria_Antecipada",  # Jornada VA 03 - Jornada de Revistoria (chaves_va_reprovada_prd)
+}
+
 # Override central de de-para de CAMPOS (corpo/botão) que não vêm das fichas.
 # Chave = nome do evento AJO; valor = { campo_minusculo: destino }.
 # Destino = caminho XDM (vira @event{evento.destino}) OU, se NÃO for caminho XDM
@@ -581,6 +587,8 @@ def build_wpp(payloads_dir: Path, de_para_index: list, ajo_map: dict):
             source_event = (entry["sourceEventType"] if entry else "") or ""
         journey["_deParaFields"] = entry["fields_map"] if entry else {}
         journey["_ajoEvent"] = ajo_map.get(source_event.strip().lower())  # nome do evento ou None
+        if jid in WPP_EVENT_OVERRIDE:  # override por jornada (payload sem sourceEventType)
+            journey["_ajoEvent"] = WPP_EVENT_OVERRIDE[jid]
 
         # Override central de campos mapeados à mão (vence o de-para das fichas).
         _ev = journey["_ajoEvent"]
