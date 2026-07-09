@@ -7,6 +7,7 @@ Rode localmente (onde as pastas-fonte existem) e faça commit dos arquivos do si
     python build_site.py
 """
 import difflib
+import hashlib
 import json
 import re
 import sys
@@ -944,6 +945,22 @@ def main():
     OUT_DATA.write_text(content, encoding="utf-8")
     size_kb = OUT_DATA.stat().st_size / 1024
     print(f"OK -> {OUT_DATA} ({size_kb:.0f} KB)")
+
+    # Cache-busting (GitHub Pages): carimba um hash curto de data.js+app.js no loader
+    # do index.html irmão. Só age onde existe o marcador BUILD_VER (site); na extensão
+    # o index.html não tem o marcador -> no-op.
+    try:
+        app_txt = (OUT_DATA.parent / "app.js").read_text(encoding="utf-8")
+    except OSError:
+        app_txt = ""
+    ver = hashlib.sha1((content + app_txt).encode("utf-8")).hexdigest()[:10]
+    idx_path = OUT_DATA.parent / "index.html"
+    if idx_path.exists():
+        idx = idx_path.read_text(encoding="utf-8")
+        idx2, n = re.subn(r"(var ver = ')[^']*(';\s*/\* BUILD_VER)", r"\g<1>" + ver + r"\g<2>", idx)
+        if n:
+            idx_path.write_text(idx2, encoding="utf-8")
+            print(f"[cache-bust] index.html ver -> {ver}")
 
 
 if __name__ == "__main__":
