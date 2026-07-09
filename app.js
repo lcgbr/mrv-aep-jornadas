@@ -12,11 +12,15 @@ Object.keys(INFOBIP_DATA).forEach(function (bu) {
 const CFG = window.SITE_CONFIG || {};
 const BOT_NUMBERS = CFG.botNumbers || { PRD: {}, QAS: {} };
 const PHONE_XDM = CFG.phoneXdm || '_mrv.identityEvents.phone';
+// Guia de Variáveis: specs de mapeamento das jornadas complexas (1 entrada/jornada).
+const GUIDE = window.GUIDE_DATA || [];
 
-let currentView = 'depara';   // 'depara' | 'whatsapp'
+let currentView = 'depara';   // 'depara' | 'whatsapp' | 'guia'
 let currentBotEnv = 'PRD';    // 'PRD' | 'QAS'
 let selectedDeParaId = null;
 let selectedWpp = null;       // { journeyId, activityId }
+let selectedGuideId = null;   // id da spec selecionada na visão Guia
+let currentGuideFormulas = []; // fórmulas da spec aberta (p/ copiar por índice)
 let currentAjoStr = '';        // payload AJO como JSON identado (visualização)
 let currentAjoPayload = null;  // objeto do payload AJO atual (p/ copiar como string ou JSON)
 
@@ -259,6 +263,23 @@ function buildSidebar(term) {
                 ));
             });
         });
+    } else if (currentView === 'guia') {
+        // Busca cobre nome da jornada, atividades, variáveis e fórmulas (searchIndex do build).
+        const filtered = GUIDE.filter(g => matchesQuery(g.searchIndex || '', q));
+        const grouped = {};
+        filtered.forEach(g => { (grouped[g.bu] = grouped[g.bu] || []).push(g); });
+        Object.keys(grouped).sort().forEach(bu => {
+            container.appendChild(buGroup(bu));
+            grouped[bu].sort((a, b) => a.title.localeCompare(b.title)).forEach(g => {
+                count++;
+                container.appendChild(sidebarItem(
+                    guideBadge(g.complexity) + ' ' + g.title, 'fa-book-open',
+                    selectedGuideId === g.id,
+                    () => renderGuide(g.id),
+                    g.pattern
+                ));
+            });
+        });
     } else {
         Object.keys(WPP).sort().forEach(bu => {
             const journeys = WPP[bu] || [];
@@ -476,11 +497,103 @@ function selectWpp(journey, act) {
         '</div></div>';
 }
 
+// ============================ Render: Guia de Variáveis ============================
+// Renderiza as specs de mapeamento (window.GUIDE_DATA, geradas de instrucao_mapeamento_*.md).
+const GUIDE_CX = {
+    critica: ['🔴🔴', 'Crítica', 'bg-red-100 text-red-700'],
+    alta: ['🔴', 'Alta', 'bg-red-50 text-red-600'],
+    media: ['🟡', 'Média', 'bg-amber-100 text-amber-700'],
+    baixa: ['🟢', 'Baixa', 'bg-emerald-100 text-emerald-700'],
+};
+function guideBadge(cx) { return (GUIDE_CX[cx] || ['📄'])[0]; }
+
+// Destaca os tokens buscados no HTML já renderizado (só em texto, nunca dentro de tags).
+function highlightTerms(html, q) {
+    const toks = (q || '').trim().toLowerCase().split(/\s+/).filter(t => t.length >= 3);
+    if (!toks.length) return html;
+    return html.split(/(<[^>]+>)/g).map(seg => {
+        if (seg.startsWith('<')) return seg;
+        let out = seg;
+        toks.forEach(t => {
+            const re = new RegExp('(' + t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+            out = out.replace(re, '<mark>$1</mark>');
+        });
+        return out;
+    }).join('');
+}
+
+// Guia fixo (igual p/ todas as jornadas): como usar as fórmulas no AJO.
+function guideHowToHtml() {
+    return '<details class="bg-lima-light border border-lima-teal/20 rounded-xl p-4 mb-6">' +
+        '<summary class="cursor-pointer font-bold text-lima-teal text-sm"><i class="fa-solid fa-circle-question mr-1"></i> Como usar no AJO (sintaxe e onde colar)</summary>' +
+        '<div class="mt-3 text-sm text-slate-700 space-y-2">' +
+        '<p><strong>Campo do evento</strong>: <code class="guide-inline">@event{&lt;NomeDoEvento&gt;.&lt;pathXDM&gt;}</code> — lê o evento unitário que disparou a jornada. Em <code class="guide-inline">concat</code>, adicione <code class="guide-inline">, defaultValue: ""</code> para nunca virar null.</p>' +
+        '<p><strong>Atributo de perfil</strong>: <code class="guide-inline">{{profile.&lt;pathXDM&gt;}}</code> (ex.: <code class="guide-inline">{{profile.personalEmail.address}}</code>) — usado nos canais Email/SMS.</p>' +
+        '<p><strong>Payload do Custom Action (jsonValue)</strong>: cole a expressão <code class="guide-inline">concat([...])</code> no modo avançado — cada <code class="guide-inline">@event{…}</code> é uma entrada SEM aspas da lista; texto estático entra entre aspas com <code class="guide-inline">\\"</code> escapado.</p>' +
+        '<p><strong>Decisão sobre campo do evento</strong> (routers Marca/Momento/ID_Mensagem_Email…): use um nó <em>Condition</em> com a expressão sobre <code class="guide-inline">@event{…}</code> — publicável direto.</p>' +
+        '<p><strong>“Abriu o e-mail?”</strong>: NÃO é Condition de atributo — modele como <em>Reaction</em> (engajamento) ancorada no nó de mensagem + janela de espera.</p>' +
+        '<p><strong>Limitação (jornadas Read Audience “PF - *”)</strong>: a Condition não faz join a outra DE (semântica EXISTS) — materialize o dado no perfil antes (ver spec da jornada).</p>' +
+        '</div></details>';
+}
+
+function renderGuide(id) {
+    selectedGuideId = id;
+    const q = document.getElementById('searchInput').value;
+    buildSidebar(q);
+    const g = GUIDE.find(x => x.id === id);
+    if (!g) return;
+    currentGuideFormulas = g.formulas || [];
+
+    const cx = GUIDE_CX[g.complexity];
+    const chip = (icon, text, cls) =>
+        '<span class="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full font-semibold ' + (cls || 'bg-slate-100 text-slate-600') + '">' +
+        (icon ? '<i class="fa-solid ' + icon + '"></i>' : '') + escapeHtml(text) + '</span>';
+
+    const chips = [
+        chip('fa-layer-group', g.pattern, 'bg-lima-light text-lima-teal'),
+        chip('fa-building', g.bu),
+        g.ajoEvent ? '<button onclick="copyToClipboard(\'' + g.ajoEvent + '\', \'Evento copiado!\')" title="Copiar nome do evento" class="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full font-mono font-semibold bg-lima-teal text-white hover:bg-lima-dark transition-colors">@event{' + escapeHtml(g.ajoEvent) + '} <i class="fa-regular fa-copy"></i></button>' : '',
+        cx ? chip(null, cx[0] + ' ' + cx[1], cx[2]) : '',
+    ].filter(Boolean).join(' ');
+
+    const formulasHtml = currentGuideFormulas.length
+        ? '<div class="bg-white rounded-xl border border-slate-200 shadow-sm mb-6 overflow-hidden">' +
+          '<div class="bg-lima-teal text-white px-4 py-2.5 text-sm font-bold"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i> Fórmulas para usar no AJO</div>' +
+          '<div class="divide-y divide-slate-100">' +
+          currentGuideFormulas.map((f, i) =>
+              '<div class="px-4 py-3 flex items-start justify-between gap-3">' +
+              '<div class="min-w-0"><code class="guide-inline block break-all">' + escapeHtml(f.expr) + '</code>' +
+              (f.context ? '<div class="text-xs text-slate-500 mt-1">' + escapeHtml(f.context) + '</div>' : '') + '</div>' +
+              '<button onclick="copyGuideFormula(' + i + ')" class="flex-shrink-0 bg-white border border-lima-teal text-lima-teal hover:bg-lima-light px-2.5 py-1 rounded-lg text-xs transition-colors"><i class="fa-regular fa-copy mr-1"></i>Copiar</button>' +
+              '</div>').join('') +
+          '</div></div>'
+        : '';
+
+    document.getElementById('main-content').innerHTML =
+        '<div class="max-w-4xl mx-auto">' +
+        '<div class="mb-4">' +
+        '<h2 class="text-2xl font-extrabold text-lima-teal">' + escapeHtml(g.title) + '</h2>' +
+        '<div class="flex items-center gap-2 mt-2 flex-wrap">' + chips + '</div>' +
+        '<div class="text-xs text-slate-400 mt-1 font-mono">' + escapeHtml(g.file) + '</div>' +
+        '</div>' +
+        guideHowToHtml() +
+        formulasHtml +
+        '<div class="guide-body bg-white rounded-xl border border-slate-200 shadow-sm p-6">' +
+        highlightTerms(g.sectionsHtml || '', q) +
+        '</div></div>';
+}
+
+function copyGuideFormula(i) {
+    const f = currentGuideFormulas[i];
+    if (f) copyToClipboard(f.expr, 'Fórmula copiada!');
+}
+
 // ============================ Visão / toggles ============================
 function setView(view) {
     currentView = view;
     updateViewTabs();
-    document.getElementById('view-label').textContent = view === 'depara' ? 'DE-PARA' : 'WhatsApp';
+    document.getElementById('view-label').textContent =
+        view === 'depara' ? 'DE-PARA' : view === 'guia' ? 'Guia de Variáveis' : 'WhatsApp';
     const envToggle = document.getElementById('env-toggle');
     envToggle.classList.toggle('hidden', view !== 'whatsapp');
     envToggle.classList.toggle('flex', view === 'whatsapp');
@@ -503,6 +616,8 @@ function updateViewTabs() {
     const off = 'px-4 py-1.5 font-semibold transition-colors bg-transparent text-white hover:bg-white/10';
     document.getElementById('tab-depara').className = (currentView === 'depara') ? on : off;
     document.getElementById('tab-whatsapp').className = (currentView === 'whatsapp') ? on : off;
+    const tg = document.getElementById('tab-guia');
+    if (tg) tg.className = (currentView === 'guia') ? on : off;
 }
 
 function setBotEnv(env) {

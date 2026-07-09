@@ -643,6 +643,273 @@ def build_infobip(infobip_dir: Path):
     return by_bu
 
 
+
+# ----------------------------------------------------------------------------
+# Guia de Variáveis — instruções de mapeamento (md) das jornadas complexas
+# Fonte: AJO/mrv-sfmc-ajo-migration/instrucao_mapeamento_*.md (1 arquivo/jornada)
+# Emite window.GUIDE_DATA com fórmulas, atividades, variáveis e HTML das seções.
+# O HTML gerado usa APENAS classes guide-* (styles.css) — nada de Tailwind aqui,
+# porque o purge do CSS da extensão não escaneia o data.js.
+# ----------------------------------------------------------------------------
+
+GUIDE_DIR = Path(r"d:\Projetos\clientes\MRV\AJO\mrv-sfmc-ajo-migration")
+
+_GUIDE_BU_LABEL = {
+    "mrv-cobranca-portal": "Cobranca Portal",
+    "mrv-assistencia-tecnica": "Assistencia Tecnica",
+}
+_GUIDE_PATTERN_BY_PREFIX = [
+    ("instrucao_mapeamento_readaudience_", "Read Audience"),
+    ("instrucao_mapeamento_api_", "API Event"),
+    ("instrucao_mapeamento_dcs_", "DCS"),
+    ("instrucao_mapeamento_ftp_wa_", "FTP · WhatsApp"),
+    ("instrucao_mapeamento_ftp_email_", "FTP · E-mail"),
+    ("instrucao_mapeamento_ftp_", "FTP"),
+]
+_GACT_RE = re.compile(r"(?:EMAILV2|SMSSYNC|REST|WAITBYDURATION|MULTICRITERIADECISION[A-Z0-9]*|ENGAGEMENTSPLIT[A-Z0-9]*)-\d+")
+_GTPL_RE = re.compile(r"\b[a-z][a-z0-9_]*_(?:prd|qas)\b")
+_GASSET_RE = re.compile(r"\bmanutencao_[a-z_]+\b")
+_GXDM_RE = re.compile(r"\b(?:_mrv|person)\.[A-Za-z0-9_.]+\b")
+
+
+def _gesc(s):
+    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _ginline(s):
+    """Marcações inline sobre texto JÁ escapado: **bold** e `code`."""
+    s = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", s)
+    s = re.sub(r"`([^`]+)`", r'<code class="guide-inline">\1</code>', s)
+    return s
+
+
+def _gmd_to_html(md):
+    """Conversor mínimo do subset markdown usado nas specs (h2/h3, tabela,
+    fenced code, listas/checklists, blockquote, parágrafos)."""
+    lines = md.splitlines()
+    out, i, n = [], 0, len(lines)
+    while i < n:
+        ln = lines[i]
+        if ln.startswith("```"):
+            j = i + 1
+            buf = []
+            while j < n and not lines[j].startswith("```"):
+                buf.append(lines[j]); j += 1
+            out.append('<pre class="guide-code">' + _gesc("\n".join(buf)) + "</pre>")
+            i = j + 1
+            continue
+        if ln.lstrip().startswith("|"):
+            rows = []
+            while i < n and lines[i].lstrip().startswith("|"):
+                rows.append([c.strip() for c in lines[i].strip().strip("|").split("|")])
+                i += 1
+            body = rows[1:]
+            if len(rows) > 1 and set("".join(rows[1])) <= set("-: "):
+                body = rows[2:]
+            html = ['<div class="guide-table-wrap"><table class="guide-table"><thead><tr>']
+            for c in rows[0]:
+                html.append("<th>" + _ginline(_gesc(c)) + "</th>")
+            html.append("</tr></thead><tbody>")
+            for r in body:
+                html.append("<tr>" + "".join("<td>" + _ginline(_gesc(c)) + "</td>" for c in r) + "</tr>")
+            html.append("</tbody></table></div>")
+            out.append("".join(html))
+            continue
+        if ln.startswith("### "):
+            out.append("<h3>" + _ginline(_gesc(ln[4:])) + "</h3>"); i += 1; continue
+        if ln.startswith("## "):
+            out.append("<h2>" + _ginline(_gesc(ln[3:])) + "</h2>"); i += 1; continue
+        if ln.startswith(">"):
+            buf = []
+            while i < n and lines[i].startswith(">"):
+                buf.append(lines[i].lstrip(">").strip()); i += 1
+            out.append("<blockquote>" + _ginline(_gesc(" ".join(buf))) + "</blockquote>")
+            continue
+        if re.match(r"\s*[-*] ", ln):
+            buf = []
+            while i < n and re.match(r"\s*[-*] ", lines[i]):
+                item = re.sub(r"^\s*[-*] ", "", lines[i])
+                mark = ""
+                if item.startswith("[ ] "):
+                    mark = "\u2610 "; item = item[4:]
+                elif item.lower().startswith("[x] "):
+                    mark = "\u2611 "; item = item[4:]
+                buf.append("<li>" + mark + _ginline(_gesc(item)) + "</li>")
+                i += 1
+            out.append('<ul class="guide-list">' + "".join(buf) + "</ul>")
+            continue
+        if ln.strip() in ("", "---"):
+            i += 1; continue
+        out.append("<p>" + _ginline(_gesc(ln)) + "</p>"); i += 1
+    return "".join(out)
+
+
+def _gnorm(s):
+    return re.sub(r"[^0-9a-za-\u00ff]+", "", (s or "").lower())
+
+
+def _gload_ranking(guide_dir):
+    """ranking_complexidade_jornadas.md -> { nomeNormalizado: nivel }."""
+    fp = guide_dir / "ranking_complexidade_jornadas.md"
+    ranks = {}
+    if not fp.exists():
+        return ranks
+    lvl = {"\U0001f534\U0001f534": "critica", "\U0001f534": "alta", "\U0001f7e1": "media", "\U0001f7e2": "baixa"}
+    for m in re.finditer(r"^\|\s*\d+\s*\|\s*\*\*(.+?)\*\*\s*\|(.+)$", fp.read_text(encoding="utf-8"), re.M):
+        name = m.group(1).strip()
+        rest = m.group(2)
+        level = None
+        if "\U0001f534\U0001f534" in rest: level = "critica"
+        elif "\U0001f534" in rest: level = "alta"
+        elif "\U0001f7e1" in rest: level = "media"
+        elif "\U0001f7e2" in rest: level = "baixa"
+        if level:
+            ranks[_gnorm(name)] = level
+    return ranks
+
+
+def _gcomplexity(title, ranks):
+    key = _gnorm(title)
+    if key in ranks:
+        return ranks[key]
+    for k, v in ranks.items():  # tolerância: contido num sentido ou noutro
+        if k and (k in key or key in k):
+            return v
+    return None
+
+
+def _gextract_formulas(md):
+    """@event{...} + linhas de código com concat( — com contexto de uso."""
+    formulas, seen = [], set()
+    section = ""
+    for ln in md.splitlines():
+        if ln.startswith("## "):
+            section = re.sub(r"[*`#]", "", ln[3:]).strip()
+        for m in re.finditer(r"@event\{[^}]+\}", ln):
+            expr = m.group(0)
+            if expr in seen:
+                continue
+            seen.add(expr)
+            ctx = re.sub(r"[`*|>]", " ", ln.replace(expr, " ")).strip()
+            ctx = re.sub(r"\s+", " ", ctx).strip(" :=-\u2192()")
+            formulas.append({"expr": expr, "context": (ctx or section)[:160]})
+        if "concat(" in ln and "concat([" in ln:
+            expr = ln.strip()
+            if expr not in seen:
+                seen.add(expr)
+                formulas.append({"expr": expr, "context": section[:160]})
+    return formulas
+
+
+def _gparse_ident(md):
+    """Tabela chave-valor da seção '## Identificação'."""
+    ident = {}
+    m = re.search(r"## Identifica.*?\n(.*?)(?=\n## )", md, re.S)
+    if not m:
+        return ident
+    for ln in m.group(1).splitlines():
+        ln = ln.strip()
+        if not ln.startswith("|"):
+            continue
+        cells = [c.strip() for c in ln.strip("|").split("|")]
+        if len(cells) < 2 or set("".join(cells)) <= set("-: "):
+            continue
+        key = re.sub(r"[`*]", "", cells[0]).strip()
+        val = re.sub(r"\*\*", "", " · ".join(c for c in cells[1:] if c)).strip()
+        if key:
+            ident[key] = val
+    return ident
+
+
+def _gvariables(md):
+    """1ª coluna das tabelas de de-para/mapeamento + paths XDM citados."""
+    out, seen = [], set()
+    for sec in re.finditer(r"## ((?:De-para|Mapeamento|Personaliza)[^\n]*)\n(.*?)(?=\n## |\Z)", md, re.S):
+        for ln in sec.group(2).splitlines():
+            ln = ln.strip()
+            if not ln.startswith("|"):
+                continue
+            first = ln.strip("|").split("|")[0].strip()
+            for tick in re.findall(r"`([^`]+)`", first):
+                for v in re.split(r"\s*[/|+]\s*", tick):
+                    v = v.strip()
+                    if v and v.lower() not in seen and not v.startswith(("_mrv", "person.")):
+                        seen.add(v.lower()); out.append(v)
+    for m in _GXDM_RE.finditer(md):
+        v = m.group(0).rstrip(".")
+        if v.lower() not in seen:
+            seen.add(v.lower()); out.append(v)
+    return out
+
+
+def build_guide(guide_dir: Path):
+    if not guide_dir.exists():
+        print(f"[guia] diretório não encontrado: {guide_dir} (GUIDE_DATA vazio)")
+        return []
+    ranks = _gload_ranking(guide_dir)
+    entries = []
+    for fp in sorted(guide_dir.glob("instrucao_mapeamento_*.md")):
+        if fp.name == "instrucao_mapeamento_csharp.md":
+            continue  # instrução global de ingestão C#, não é spec por jornada
+        md = fp.read_text(encoding="utf-8")
+        lines = md.splitlines()
+        h1 = lines[0] if lines else ""
+        m = re.search(r"—\s*(.+?)\s*·", h1)
+        title = re.sub(r'[\"*]', "", m.group(1)).strip() if m else fp.stem
+        pattern = next((p for pref, p in _GUIDE_PATTERN_BY_PREFIX if fp.name.startswith(pref)), "FTP")
+        ident = _gparse_ident(md)
+        if "dcsExternal" in md and pattern.startswith("FTP") and "dcs" not in fp.name:
+            # família Wedo: arquivo com prefixo ftp_ mas eventType real dcsExternal
+            if "eventType = dcsExternal" in md or "dcsExternal`" in md:
+                pattern = "DCS"
+        bu_m = re.search(r"BU\s*`([a-z0-9-]+)`", md)
+        bu_raw = bu_m.group(1) if bu_m else ""
+        ev_m = re.search(r"\b(MRV_FTP_[A-Za-z0-9_]+|Vistoria_Antecipada)\b", ident.get("Evento AJO", "") or md)
+        set_m = re.search(r"sourceEventType[`\s=]+`?([a-zA-Z0-9]+)`?", md)
+        formulas = _gextract_formulas(md)
+        activities, aseen = [], set()
+        for rx in (_GACT_RE, _GTPL_RE, _GASSET_RE):
+            for m2 in rx.finditer(md):
+                v = m2.group(0)
+                if v.lower() not in aseen:
+                    aseen.add(v.lower()); activities.append(v)
+        variables = _gvariables(md)
+        body = "\n".join(lines[1:])
+        # pool geral de tokens `backtick` (V2-N, templates, emailIds, DEs...) só p/ busca
+        tickpool = set()
+        for ln2 in md.splitlines():
+            for t in re.findall(r"`([^`]{2,60})`", ln2):
+                if t.strip(): tickpool.add(t.strip())
+            if ln2.lstrip().startswith("|"):  # nomes com _ em tabelas (templates sem backtick etc.)
+                for w in re.findall(r"[A-Za-z][A-Za-z0-9]*_[A-Za-z0-9_]+", ln2):
+                    tickpool.add(w)
+        ticks = sorted(tickpool)
+        search_index = " ".join(
+            [title, bu_raw, _GUIDE_BU_LABEL.get(bu_raw, ""), pattern,
+             (ev_m.group(1) if ev_m else ""), (set_m.group(1) if set_m else "")]
+            + activities + variables + [f["expr"] for f in formulas] + ticks
+        ).lower()
+        entries.append({
+            "id": fp.stem.replace("instrucao_mapeamento_", ""),
+            "file": fp.name,
+            "title": title,
+            "pattern": pattern,
+            "bu": _GUIDE_BU_LABEL.get(bu_raw, bu_raw or "—"),
+            "ajoEvent": ev_m.group(1) if ev_m else None,
+            "sourceEventType": set_m.group(1) if set_m else None,
+            "complexity": _gcomplexity(title, ranks),
+            "formulas": formulas,
+            "activities": activities,
+            "variables": variables,
+            "searchIndex": search_index,
+            "sectionsHtml": _gmd_to_html(body),
+        })
+    print(f"[guia] {len(entries)} jornadas; "
+          f"{sum(len(e['formulas']) for e in entries)} fórmulas; "
+          f"ranking casado em {sum(1 for e in entries if e['complexity'])}/{len(entries)}")
+    return entries
+
+
 # ----------------------------------------------------------------------------
 def main():
     if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
@@ -657,6 +924,7 @@ def main():
     depara_stats = annotate_depara(depara_list, ajo_map)  # aplica override + marca status/faltantes
     wpp_data = build_wpp(PAYLOADS_DIR, depara_index, ajo_map)
     infobip_data = build_infobip(INFOBIP_DIR)
+    guide_data = build_guide(GUIDE_DIR)
 
     config = {
         "phoneXdm": PHONE_XDM,
@@ -670,6 +938,7 @@ def main():
         f"window.DEPARA_DATA = {json.dumps(depara_list, ensure_ascii=False)};\n"
         f"window.WPP_DATA = {json.dumps(wpp_data, ensure_ascii=False)};\n"
         f"window.INFOBIP_DATA = {json.dumps(infobip_data, ensure_ascii=False)};\n"
+        f"window.GUIDE_DATA = {json.dumps(guide_data, ensure_ascii=False)};\n"
         f"window.SITE_CONFIG = {json.dumps(config, ensure_ascii=False)};\n"
     )
     OUT_DATA.write_text(content, encoding="utf-8")
