@@ -653,7 +653,7 @@ def build_infobip(infobip_dir: Path):
 # porque o purge do CSS da extensão não escaneia o data.js.
 # ----------------------------------------------------------------------------
 
-GUIDE_DIR = Path(r"d:\Projetos\clientes\MRV\AJO\mrv-sfmc-ajo-migration")
+GUIDE_DIR = Path(r"d:\Projetos\clientes\MRV\AEP\mrv-aep-jornadas\docs")
 
 _GUIDE_BU_LABEL = {
     "mrv-cobranca-portal": "Cobranca Portal",

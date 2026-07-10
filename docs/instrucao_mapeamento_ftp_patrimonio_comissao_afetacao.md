@@ -43,6 +43,10 @@ File drop (import\jornada patrimonio comissão\)
 ```
 - AMPscript no e-mail: `@PrimeiroNome`, `@Empreendimento`, `@Obra` (+ variáveis de rodapé
   `@Member_Busname/Addr/City/State/PostalCode/Country`, `@profile_center_url`, `@unsub_center_url`).
+  **`@PrimeiroNome` é derivado do campo `Representante`** via AMPscript (ProperCase + `IndexOf` do
+  primeiro espaço) — ver a nota de primeiro nome nas Fórmulas.
+- Asset `patrimonio_afetacao` (assetId `106042`, emailId `42419`) está em **`Draft`** no Content Builder;
+  criado por Matheus Santos, última edição Leonardo Brasileiro (03/2023).
 - Sem query activities: o CSV chega pronto e é importado direto (Rota A / Nativo).
 - Histórico ruim no run log: **62% de erro** de import ("field mappings are valid…") — o layout do
   CSV de origem parece ter divergido da DE ao longo do tempo (ver gaps).
@@ -68,12 +72,16 @@ Base: de-para `relacionamentoPatrimonioComissaoAfetacao.md` — conferido contra
 | 0 | `Empreendimento` | `_mrv.serviceCase.nomeEmpreendimento` | FG-D | String | Exceção legada PT · usado no corpo do e-mail (`@Empreendimento`) |
 | 1 | `CPF` | `_mrv.identityEvents.cpfHash` | Identity | String | Identidade primária (namespace `cpf_hash`); a Function gera o hash |
 | 2 | `E-mail` | `_mrv.identityEvents.email` | Identity | String | Endereço do canal e-mail |
-| 3 | `Representante` | `_mrv.productOffer.representativeName` | FG-E | String | Bloco B · não aparece no AMPscript do e-mail AS-IS |
+| 3 | `Representante` | `_mrv.productOffer.representativeName` | FG-E | String | Bloco B · **fonte do `@PrimeiroNome`** (o AMPscript extrai o 1º nome deste campo) |
 | 4 | `Locale` | `_mrv.ftpFileImport.locale` | FG-I | String | `pt-BR` (metadado) |
 | 5 | `Obra` | ⚠️ **SEM DESTINO** (schema sem `propertyContext`) | — | — | **Usado no e-mail AS-IS** (`@Obra`, ex.: "76%") — resolver antes de migrar o conteúdo |
 
-Nome / primeiro nome: **não vai no evento** — resolvido no **PROFILE** via `cpfHash`
-(`person.name.firstName` / `person.name.fullName`).
+Nome / primeiro nome (regra global): **não vai no evento** — resolvido no **PROFILE** via `cpfHash`
+(`person.name.firstName` / `person.name.fullName`). ⚠️ **Atenção nesta jornada:** no SFMC o
+`@PrimeiroNome` **não** vem de um nome de perfil — é extraído do campo **`Representante`** do próprio
+arquivo. Confirmar se `Representante` é o **titular** (mesmo dono do CPF → pode usar o firstName do
+perfil) ou uma pessoa **distinta** (ex.: representante da comissão de moradores → aí o 1º nome tem de
+sair do próprio evento, `_mrv.productOffer.representativeName`, e não do perfil). Ver Fórmulas abaixo.
 
 ## Fórmulas prontas para o AJO
 Sempre com o nome **COMPLETO** do evento + path completo (nunca abreviar):
@@ -83,12 +91,17 @@ Sempre com o nome **COMPLETO** do evento + path completo (nunca abreviar):
 | Empreendimento (`@Empreendimento`) | `@event{MRV_FTP_Jor_Patri_Comi_Afet._mrv.serviceCase.nomeEmpreendimento}` |
 | Representante (se o conteúdo novo usar) | `@event{MRV_FTP_Jor_Patri_Comi_Afet._mrv.productOffer.representativeName}` |
 | E-mail (endereço do canal, se vier do evento) | `@event{MRV_FTP_Jor_Patri_Comi_Afet._mrv.identityEvents.email}` |
-| Primeiro nome (`@PrimeiroNome`) | `{{profile.person.name.firstName}}` — via perfil (cpfHash), **não** via `@event{}` |
+| Primeiro nome — opção A (regra global, se `Representante` = titular) | `{{profile.person.name.firstName}}` — via perfil (cpfHash), **não** via `@event{}` |
+| Primeiro nome — opção B (se `Representante` ≠ titular) | extrair o 1º token de `@event{MRV_FTP_Jor_Patri_Comi_Afet._mrv.productOffer.representativeName}` (substring até o 1º espaço + ProperCase) — vira **computed attribute / expressão** no AJO, reproduzindo o `IndexOf`/ProperCase do AMPscript |
 | Obra (`@Obra`) | ⚠️ sem fórmula possível hoje — campo sem destino XDM (ver gaps) |
 
 **Lembrete concat:** sempre que a variável for usada junto com texto fixo, é preciso `concat(...)`:
+- `concat("Olá ", {{profile.person.name.firstName}}, ", já conferiu o demonstrativo financeiro do seu apê?")` (opção A)
 - `concat("Já conferiu o demonstrativo financeiro do seu apê no ", @event{MRV_FTP_Jor_Patri_Comi_Afet._mrv.serviceCase.nomeEmpreendimento}, "?")`
 - `concat("Empreendimento: ", @event{MRV_FTP_Jor_Patri_Comi_Afet._mrv.serviceCase.nomeEmpreendimento})`
+> Sozinha (célula de personalização isolada, sem texto ao redor) a variável pode ir direta, ex.:
+> `@event{MRV_FTP_Jor_Patri_Comi_Afet._mrv.serviceCase.nomeEmpreendimento}` — o `concat(...)` só é
+> obrigatório quando há **texto fixo + variável** na mesma string.
 
 ## Gaps / pendências
 - [ ] ⚠️ **`Obra` sem destino XDM** e o e-mail AS-IS usa `@Obra` (percentual de evolução da obra).
@@ -97,10 +110,17 @@ Sempre com o nome **COMPLETO** do evento + path completo (nunca abreviar):
       variável do conteúdo migrado. Enquanto não decidir, o e-mail não pode ser migrado 1:1.
 - [ ] ⚠️ **62% de erro no import AS-IS** ("We couldn't import your file…") — o layout real do CSV pode
       divergir das 6 colunas mapeadas. Validar com a MRV um arquivo recente antes de fixar o parser.
-- [ ] ⚠️ Jornada com **2 registros de teste** e automation pausada em 08/2024 — confirmar com o dono
-      (Gustavo Cardoso) se a régua será mantida na migração.
-- [ ] Migrar o conteúdo do e-mail `patrimonio_afetacao` (assunto "Já conferiu o demonstrativo
-      financeiro do seu apê?") e conferir AMPscript interno do asset (o export não versiona o HTML).
+- [ ] ⚠️ Confirmar o **primeiro nome**: no SFMC o `@PrimeiroNome` sai de `Representante`, não de um
+      nome de perfil. Definir opção A (perfil, se `Representante` = titular) ou opção B (extrair do
+      evento `representativeName`) — ver Fórmulas. Sinal de alerta: nos 2 registros de teste o
+      `Representante` é o mesmo ("LEANDRO PIMENTEL") para CPFs/e-mails diferentes.
+- [ ] ⚠️ Jornada de **baixíssimo volume** (2 registros de teste na DE, `Overwrite`). Automation
+      atualmente `AwaitingTrigger`, mas **última execução em 01/07/2026 = ERRORED** e última
+      edição/pausa em 08/2024 (Gabriel Xereguim). Confirmar com o dono (**Gustavo Cardoso**) se a
+      régua será mantida na migração.
+- [ ] Migrar o conteúdo do e-mail `patrimonio_afetacao` (assetId `106042`, **status `Draft`**;
+      assunto "Já conferiu o demonstrativo financeiro do seu apê?") e conferir o AMPscript interno do
+      asset — inclusive a lógica de extração do 1º nome (o export não versiona o HTML).
 - [ ] Nota de trilha: a ficha de assessment (06/2026) sugeria entry **Read Audience**, mas a trilha
       adotada foi **FTP File Event** (evento `MRV_FTP_Jor_Patri_Comi_Afet` já criado, de-para e mapper
       C# prontos) — esta spec segue a trilha FTP.
@@ -109,5 +129,6 @@ Sempre com o nome **COMPLETO** do evento + path completo (nunca abreviar):
 - [ ] `Locale` (tipo Locale, 5 chars, "pt-BR") — campo incomum; candidato a descarte na migração.
 
 ## Complexidade
-🟢 **Baixa** — jornada linear de 1 e-mail sem splits; o único driver de trabalho é resolver o campo
-`Obra` (usado no e-mail, sem destino XDM) antes de migrar o conteúdo.
+🟢 **Baixa** — jornada linear de 1 e-mail, sem splits nem router; os únicos drivers de trabalho são
+resolver o campo `Obra` (usado no e-mail, sem destino XDM) e definir a fonte do primeiro nome
+(perfil × campo `Representante`) antes de migrar o conteúdo.
