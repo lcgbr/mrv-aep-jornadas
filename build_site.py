@@ -658,6 +658,14 @@ GUIDE_DIR = Path(r"d:\Projetos\clientes\MRV\AJO\mrv-sfmc-ajo-migration")
 _GUIDE_BU_LABEL = {
     "mrv-cobranca-portal": "Cobranca Portal",
     "mrv-assistencia-tecnica": "Assistencia Tecnica",
+    "mrv-marketplace": "Marketplace",
+    "mrv-relacionamento": "Relacionamento",
+    "mrv-marketing-credito": "Marketing Credito",
+    "mrv-gestao-vendas-h": "Gestao Vendas H",
+    "mrv-gestao-vendas-p": "Gestao Vendas P",
+    "sensia": "Sensia",
+    "urba": "Urba",
+    "luggo": "Luggo",
 }
 _GUIDE_PATTERN_BY_PREFIX = [
     ("instrucao_mapeamento_readaudience_", "Read Audience"),
