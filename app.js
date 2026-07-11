@@ -247,8 +247,14 @@ function buildSidebar(term) {
     let count = 0;
 
     if (currentView === 'depara') {
-        const filtered = DEPARA.filter(j =>
-            matchesQuery((j.title || '') + ' ' + (j.bu || '') + ' ' + (j.sourceEventType || ''), q));
+        const filtered = DEPARA.filter(j => {
+            // busca também pelos campos da jornada (nome da coluna CSV + destino XDM),
+            // p/ achar quem possui, ex., "Empreendimento" ou "Tipo_Contrato".
+            const fieldTokens = (j.fields || [])
+                .map(f => (f.csvField || '') + ' ' + (f.aepField || '')).join(' ');
+            return matchesQuery(
+                (j.title || '') + ' ' + (j.bu || '') + ' ' + (j.sourceEventType || '') + ' ' + fieldTokens, q);
+        });
         const grouped = {};
         filtered.forEach(j => { (grouped[j.bu] = grouped[j.bu] || []).push(j); });
         Object.keys(grouped).sort().forEach(bu => {
