@@ -1,6 +1,6 @@
 # Ranking de complexidade — jornadas analisadas (migração SFMC → AJO)
 
-Consolidação das **40 jornadas** com spec de mapeamento gerada. Complexidade = dificuldade de **tradução
+Consolidação das **41 jornadas** com spec de mapeamento gerada. Complexidade = dificuldade de **tradução
 para o AJO** (não volume de conteúdo só), pesando: padrão de entrada, roteamento/decisão, nº de mensagens,
 canais, engajamento/reação e **bloqueadores estruturais**.
 
@@ -48,6 +48,7 @@ canais, engajamento/reação e **bloqueadores estruturais**.
 | 38 | **AT_orientacoes_para_Sindico_Vistoria_ASC** | Assist. Técnica | FTP · E-mail | 1 e-mail | — | 🟢 **Baixa** | E-mail único; assunto via `concat(...)`; migrar 1 asset |
 | 39 | **Agendamento_para_VA_do_Sindico** | Assist. Técnica | FTP · E-mail | 2 e-mails | — (linear; Wait by Attribute em `Data_visita`) | 🟢 **Baixa** | Converter Wait by Attribute em Wait until sobre `scheduledDate` |
 | 40 | **Jrn pag arm - Pagamento processado** | Marketplace | Read Audience (batch) | 2 e-mails + 1 SMS | engagement split (abertura) | 🟢 **Baixa** | Trilha linear de confirmação; complexidade só operacional (materializar audiência + CPF na DE). Evento **A CRIAR** |
+| 41 | **Prazo Encerrando 7 dias** | Marketplace | FTP (batch) | 3 e-mails + 3 SMS | **decision split 3-vias** (`Classificação`) | 🟢 **Baixa** | Evento `MRV_FTP_Prazo_Encerrando_7d` **já existe**; split de 1 campo → `Condition` (3 subfluxos idênticos, só muda o asset). ⚠️ ramo **Médio** com condição impossível (`Equal AND IsNull`) a corrigir + wait por atributo (`deadlineApproaching − 7d`). **Dormente** desde out/2025 |
 
 ## Leitura por padrão de entrada
 - **Read Audience (batch)** — 7 jornadas (`PF - *` ×3 + Réguas OPPORTUNITY Armários/KIT + Jrn pag arm ×3): o
