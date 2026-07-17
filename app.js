@@ -115,6 +115,7 @@ const PROFILE_PHONE = 'profile.mobilePhone.number';
 const PROFILE_FIELD_MAP = {};   // field_lower -> 'profile.<xdmPath>' (variáveis do corpo do template)
 const PROFILE_JOURNEYS = new Set([
     '6b755002-02a8-4936-a38a-14b06377ac0a',   // Boas Vindas_FTP (Relacionamento) — mia_cadastroplataforma_prd
+    '6fe3f1f6-81be-4d44-9080-326debd66207',   // Jornada Boas Vindas Whatsapp (Relacionamento, não-FTP) — mia_cadastroplataforma_prd
 ]);
 
 function resolveXdm(field, deParaFields) {
