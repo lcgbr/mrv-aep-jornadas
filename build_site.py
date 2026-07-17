@@ -61,6 +61,11 @@ PROPOSED_EVENTS = {
 # próprio (o site casaria por nome e ficaria sem evento). Valor = nome do evento unitário no AJO.
 WPP_EVENT_OVERRIDE = {
     "a2fc65ea-0e17-4831-b8dc-f12f1a2d1485": "Vistoria_Antecipada",  # Jornada VA 03 - Jornada de Revistoria (chaves_va_reprovada_prd)
+    # Vistoria Antecipada (evento de API/dcsExternal, schema Early_Inspection_Event).
+    # Telefone = _mrv.identityEvents.phone (regra global de PHONE_FIELDS -> @event{Evento._mrv.identityEvents.phone}).
+    "f2cc7891-3b62-48c2-afdc-f2ab789474cc": "MRV_VA_Liberacao_Bloco",         # AssistenciaTecnica · Jornada VA 01 - Liberação do Bloco + Agendamento
+    "e619eb3d-7fa5-4753-b175-bc9ddbeb6a68": "MRV_VA_Liberacao_Bloco_Sensia",  # Sensia · JORNADA_01_LIBERAÇÃO_BLOCO_AGENDAMENTO_PRD
+    "55a11e0a-688a-4e2d-afc4-f798de00e121": "MRV_VA_Revistoria_Sensia",       # Sensia · JORNADA_03_JORNADA_DE_REVISTORIA_PRD
 }
 
 # Override central de de-para de CAMPOS (corpo/botão) que não vêm das fichas.
