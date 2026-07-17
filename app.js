@@ -108,6 +108,15 @@ function copyAjoJson() {
 const SF_VAR_RE = /\{\{Event\.(?:DEAudience|AutomationAud|APIEvent)-[^.}]+\.([^}]+)\}\}/g;
 const PHONE_FIELDS = new Set(['telefone', 'celular']); // regra global confirmada
 
+// Jornadas de AUDIÊNCIA/batch (sem evento unitário): as variáveis vêm do PROFILE
+// (#{ExperiencePlatform.ProfileFieldGroup.profile.<path>}), não de @event{}.
+const PROFILE_DS = 'ExperiencePlatform.ProfileFieldGroup.';
+const PROFILE_PHONE = 'profile.mobilePhone.number';
+const PROFILE_FIELD_MAP = {};   // field_lower -> 'profile.<xdmPath>' (variáveis do corpo do template)
+const PROFILE_JOURNEYS = new Set([
+    '6b755002-02a8-4936-a38a-14b06377ac0a',   // Boas Vindas_FTP (Relacionamento) — mia_cadastroplataforma_prd
+]);
+
 function resolveXdm(field, deParaFields) {
     const key = (field || '').trim().toLowerCase();
     if (PHONE_FIELDS.has(key)) return PHONE_XDM;        // 1. regra global de telefone
@@ -115,12 +124,26 @@ function resolveXdm(field, deParaFields) {
     return v || null;                                    // 3. sem destino -> fallback
 }
 
+// Jornada de audiência: campo SFMC -> caminho no profile (telefone é regra global).
+function resolveProfile(field) {
+    const key = (field || '').trim().toLowerCase();
+    if (PHONE_FIELDS.has(key)) return PROFILE_PHONE;
+    return PROFILE_FIELD_MAP[key] || null;
+}
+
 // Converte os merge fields SFMC -> @event{<NomeDoEvento>.<pathXDM>}.
 // Sem evento AJO da jornada (ajoEvent null) OU campo sem path conhecido:
 // mantém o {{Event...}} original e registra em warnings.
-function convertVar(str, deParaFields, ajoEvent, warnings) {
+function convertVar(str, deParaFields, ajoEvent, warnings, profileMode) {
     if (!str) return str;
     return str.replace(SF_VAR_RE, function (full, field) {
+        // Jornada de audiência/batch: variável vem do PROFILE -> #{...profile.<path>}.
+        if (profileMode) {
+            const pp = resolveProfile(field);
+            if (pp) return '#{' + PROFILE_DS + pp + '}';
+            if (warnings && warnings.indexOf(full) === -1) warnings.push(full);
+            return full;
+        }
         const xdm = ajoEvent ? resolveXdm(field, deParaFields) : null;
         // caminho XDM -> @event{}; valor não-XDM (ex.: texto do de-para) -> literal estático.
         if (xdm) return isXdmPath(xdm) ? ('@event{' + ajoEvent + '.' + xdm + '}') : xdm;
@@ -142,6 +165,7 @@ function mapToAjoFormat(journey, act) {
     const sfmc = act.payload || {};
     const deParaFields = (journey && journey._deParaFields) || {};
     const ajoEvent = (journey && journey._ajoEvent) || null;  // nome do evento unitário AJO
+    const profileMode = PROFILE_JOURNEYS.has((journey && journey.journeyId) || '');
     const warnings = [];
 
     const botName = sfmc.botName || '';
@@ -153,7 +177,7 @@ function mapToAjoFormat(journey, act) {
     if (texts.length > 0) {
         components.push({
             type: 'body',
-            parameters: texts.map(t => ({ type: 'text', text: convertVar(t, deParaFields, ajoEvent, warnings) }))
+            parameters: texts.map(t => ({ type: 'text', text: convertVar(t, deParaFields, ajoEvent, warnings, profileMode) }))
         });
     }
 
@@ -161,7 +185,7 @@ function mapToAjoFormat(journey, act) {
         const pt = m.parameterType;
         if (pt === 'image' || pt === 'video' || pt === 'document') {
             const param = { type: pt };
-            param[pt] = { link: convertVar(m.link, deParaFields, ajoEvent, warnings) };
+            param[pt] = { link: convertVar(m.link, deParaFields, ajoEvent, warnings, profileMode) };
             components.push({ type: m.componentType, parameters: [param] });
         }
     });
@@ -180,7 +204,7 @@ function mapToAjoFormat(journey, act) {
             ? (b.text || b.payload || '')
             : (b.payload || b.text || '');
         const parameter = { type: paramType };
-        const value = convertVar(rawValue, deParaFields, ajoEvent, warnings);
+        const value = convertVar(rawValue, deParaFields, ajoEvent, warnings, profileMode);
         if (value) parameter[paramType] = value;
         components.push({
             type: 'button',
@@ -208,7 +232,7 @@ function mapToAjoFormat(journey, act) {
     if (QAS_OVERRIDES.userNumber.trim()) {
         userNumber = QAS_OVERRIDES.userNumber.trim();
     } else {
-        userNumber = convertVar(sfmc.userNumber || '', deParaFields, ajoEvent, warnings);
+        userNumber = convertVar(sfmc.userNumber || '', deParaFields, ajoEvent, warnings, profileMode);
     }
 
     const payload = {
