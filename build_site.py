@@ -60,7 +60,7 @@ PROPOSED_EVENTS = {
 # Override de evento AJO por journeyId — jornadas WPP cujo payload não traz sourceEventType
 # próprio (o site casaria por nome e ficaria sem evento). Valor = nome do evento unitário no AJO.
 WPP_EVENT_OVERRIDE = {
-    "a2fc65ea-0e17-4831-b8dc-f12f1a2d1485": "Vistoria_Antecipada",  # Jornada VA 03 - Jornada de Revistoria (chaves_va_reprovada_prd)
+    "a2fc65ea-0e17-4831-b8dc-f12f1a2d1485": "MRV_VA_Revistoria",  # AssistenciaTecnica · Jornada VA 03 - Jornada de Revistoria (chaves_va_reprovada_prd)
     # Vistoria Antecipada (evento de API/dcsExternal, schema Early_Inspection_Event).
     # Telefone = _mrv.identityEvents.phone (regra global de PHONE_FIELDS -> @event{Evento._mrv.identityEvents.phone}).
     "f2cc7891-3b62-48c2-afdc-f2ab789474cc": "MRV_VA_Liberacao_Bloco",         # AssistenciaTecnica · Jornada VA 01 - Liberação do Bloco + Agendamento
