@@ -660,6 +660,7 @@ def build_infobip(infobip_dir: Path):
                 "activityKey": f"IB-{i + 1}",
                 "templateName": (msg.get("template") or {}).get("templateName") or s.get("activityName") or "",
                 "_infobip": msg,
+                "_single": s.get("_format") == "single",
                 "_review": s.get("_review") or [],
             })
         total_sends += len(acts)

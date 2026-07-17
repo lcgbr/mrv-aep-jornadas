@@ -80,7 +80,7 @@ function escapeForAjoString(s) {
 // literal — não são expressão AJO válida; resolver o de-para antes de usar.
 function buildConcatExpression(payload) {
     const json = JSON.stringify(payload || {});   // JSON compacto (1 linha)
-    const re = /@event\{[^}]+\}/g;
+    const re = /@event\{[^}]+\}|#\{[^}]+\}/g;   // @event{} e #{dataSource} = entradas nuas
     const entries = [];
     let last = 0, m;
     while ((m = re.exec(json)) !== null) {
@@ -226,6 +226,7 @@ function mapToAjoFormat(journey, act) {
 function highlightVars(jsonStr) {
     let out = escapeHtml(jsonStr);
     out = out.replace(/@event\{[^}]+\}/g, m => '<span class="var-ok">' + m + '</span>');
+    out = out.replace(/#\{[^}]+\}/g, m => '<span class="var-ok">' + m + '</span>');
     out = out.replace(/\{\{[^}]+\}\}/g, m => '<span class="var-warn">' + m + '</span>');
     return out;
 }
@@ -427,7 +428,7 @@ function selectDePara(id) {
 // MariaRosa. Variáveis (corpo, to, callbackData, mídia) são STRING CONSTANTE (nome do
 // campo) por ora, até o de-para. Reaproveita as cópias concat/JSON (currentAjoPayload).
 function renderInfobip(journey, act) {
-    const payload = { messages: [act._infobip] };
+    const payload = act._single ? act._infobip : { messages: [act._infobip] };
     currentAjoPayload = payload;
     currentAjoStr = JSON.stringify(payload, null, 2);
     const draftBadge = journey._status === 'Draft'
