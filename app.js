@@ -368,8 +368,14 @@ function selectDePara(id) {
             : override ? '<i class="fa-solid fa-arrow-up-right-dots mr-1"></i>' : '';
         const ovrBadge = override
             ? ' <span class="ml-1 text-[10px] bg-lima-light text-lima-teal px-1.5 py-0.5 rounded-full align-middle">atualizado</span>' : '';
+        // Regra geral: toda coluna do cabeçalho é obrigatória. Só a exceção merece destaque.
+        const optional = /^n[ãa]o/i.test((f.required || 'Sim').trim());
+        const reqCell = optional
+            ? '<span class="bg-amber-100 text-amber-700 text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap">Opcional</span>'
+            : '<span class="text-xs text-slate-400">Sim</span>';
         return '<tr class="' + (i % 2 ? 'bg-slate-50' : 'bg-white') + '">' +
             '<td class="px-3 py-2 align-top"><span class="code-chip">' + escapeHtml(f.csvField) + '</span></td>' +
+            '<td class="px-3 py-2 align-top">' + reqCell + '</td>' +
             '<td class="px-3 py-2 align-top font-mono text-xs ' + (missing ? 'text-lima-orange' : 'text-lima-teal') + '">' +
             icon + escapeHtml(f.aepField) + ovrBadge + '</td>' +
             '<td class="px-3 py-2 align-top">' + (f.fg && f.fg !== '—'
@@ -408,6 +414,7 @@ function selectDePara(id) {
         '<div class="overflow-x-auto"><table class="min-w-full text-sm border-collapse">' +
         '<thead class="bg-lima-teal text-white"><tr>' +
         '<th class="px-3 py-2 text-left font-semibold">Campo Origem (CSV)</th>' +
+        '<th class="px-3 py-2 text-left font-semibold">Obrig.</th>' +
         '<th class="px-3 py-2 text-left font-semibold">Destino AEP (XDM)</th>' +
         '<th class="px-3 py-2 text-left font-semibold">Field Group</th>' +
         '<th class="px-3 py-2 text-left font-semibold">Tipo</th>' +

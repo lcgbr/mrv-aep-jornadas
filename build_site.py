@@ -393,6 +393,7 @@ def parse_de_para(de_para_dir: Path):
         title = bu = event_type = source_event = source_file = evidence = ""
         fields = []
         in_table = False
+        header_idx = None  # posição de cada coluna, lida do cabeçalho da tabela §2
 
         for raw in lines:
             line = raw.strip()
@@ -411,23 +412,49 @@ def parse_de_para(de_para_dir: Path):
 
             if line.startswith("## 2. DE-PARA campo a campo"):
                 in_table = True
+                header_idx = None
                 continue
             if line.startswith("## 3."):
                 in_table = False
 
-            if in_table and line.startswith("|") and "---" not in line and "Campo CSV" not in line:
+            if in_table and line.startswith("|") and "---" not in line:
                 parts = [p.strip() for p in line.split("|")]
-                if len(parts) >= 6:
-                    csv_field = parts[2].replace("`", "")
-                    aep_field = parts[3].replace("`", "")
-                    fg = parts[4]
-                    tipo = parts[5]
-                    obs = parts[6] if len(parts) >= 7 else ""
-                    if csv_field and aep_field:
-                        fields.append({
-                            "csvField": csv_field, "aepField": aep_field,
-                            "fg": fg, "type": tipo, "obs": obs,
-                        })
+
+                # Cabeçalho: mapeia a posição de cada coluna. Torna o parser tolerante
+                # ao layout legado (sem "Obrig.") e ao novo (com), sem ler célula trocada.
+                if "Campo CSV" in line:
+                    header_idx = {}
+                    for i, p in enumerate(parts):
+                        k = p.lower().replace("`", "").strip()
+                        if k.startswith("campo csv"):
+                            header_idx["csvField"] = i
+                        elif k.startswith("obrig"):
+                            header_idx["required"] = i
+                        elif k.startswith("campo aep"):
+                            header_idx["aepField"] = i
+                        elif k == "fg":
+                            header_idx["fg"] = i
+                        elif k == "tipo":
+                            header_idx["type"] = i
+                        elif k == "obs":
+                            header_idx["obs"] = i
+                    continue
+
+                idx = header_idx or {"csvField": 2, "aepField": 3, "fg": 4, "type": 5, "obs": 6}
+
+                def _cell(key):
+                    i = idx.get(key)
+                    return parts[i].strip() if i is not None and i < len(parts) else ""
+
+                csv_field = _cell("csvField").replace("`", "")
+                aep_field = _cell("aepField").replace("`", "")
+                if csv_field and aep_field:
+                    fields.append({
+                        "csvField": csv_field, "aepField": aep_field,
+                        "fg": _cell("fg"), "type": _cell("type"), "obs": _cell("obs"),
+                        # "Sim" é o default: regra geral = toda coluna do cabeçalho é obrigatória
+                        "required": _cell("required").replace("*", "").strip() or "Sim",
+                    })
 
         if not (title and bu):
             continue
