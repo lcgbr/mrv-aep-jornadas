@@ -29,6 +29,10 @@ let currentAjoPayload = null;  // objeto do payload AJO atual (p/ copiar como st
 // por jornada; preenchido = força o MESMO nome em todos os payloads.
 const QAS_OVERRIDES = { userNumber: '', namespaceId: '', templateName: '', suffixSwap: true };
 
+// Sender Infobip (WhatsApp) por ambiente — os payloads salvos trazem o de PRD;
+// em QAS o sender é trocado na renderização/cópia (conta Infobip de homologação).
+const INFOBIP_SENDERS = { PRD: '553173000653', QAS: '553173000112' };
+
 // Remove zero-width/BOM (achado: 14 payloads têm  grudado no namespaceId).
 function cleanInvisible(s) {
     return String(s == null ? '' : s)
@@ -453,7 +457,13 @@ function selectDePara(id) {
 // MariaRosa. Variáveis (corpo, to, callbackData, mídia) são STRING CONSTANTE (nome do
 // campo) por ora, até o de-para. Reaproveita as cópias concat/JSON (currentAjoPayload).
 function renderInfobip(journey, act) {
-    const payload = act._single ? act._infobip : { messages: [act._infobip] };
+    // Em QAS o sender Infobip vira o de homologação (payload salvo tem o de PRD).
+    let msg = act._infobip;
+    if (currentBotEnv === 'QAS') {
+        msg = JSON.parse(JSON.stringify(msg));
+        msg.sender = INFOBIP_SENDERS.QAS;
+    }
+    const payload = act._single ? msg : { messages: [msg] };
     currentAjoPayload = payload;
     currentAjoStr = JSON.stringify(payload, null, 2);
     const draftBadge = journey._status === 'Draft'
