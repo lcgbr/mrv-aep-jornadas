@@ -33,6 +33,51 @@ const QAS_OVERRIDES = { userNumber: '', namespaceId: '', templateName: '', suffi
 // em QAS o sender é trocado na renderização/cópia (conta Infobip de homologação).
 const INFOBIP_SENDERS = { PRD: '553173000653', QAS: '553173000112' };
 
+// Jornadas Infobip com de-para finalizado (formato-alvo do concat). Nessas jornadas,
+// o payload é reescrito na renderização: `to` recebe o telefone normalizado (E.164),
+// entra o campo `identity` (id do identityMap phone) e o endereço vai p/ teamAddress.
+// (não editar data.js — a transformação é aplicada aqui, como a troca de sender QAS)
+const INFOBIP_MAPPED = new Set([
+    'f63c6743-b49b-4cc7-a6dd-a4591c81fce2', // JOR_EmAtendimento_DadosCorretor
+    '2b69689f-769c-4b9e-8cb6-6eb736ea593e', // JOR_Agendamento_AguardandoVisita
+    '05f62332-60f2-4eec-ac2f-a51c4f98579c', // JOR_Agendamento_EmAtendimento
+    '25f33da5-932f-45ca-ac0e-9c74d846279f', // JOR_Agendamento_Corretor
+    '7e3d3408-a043-4309-bea7-d43fae1cb854', // Engajamento ... 1º boleto/assinatura (Contrato)
+    '896dfe2d-9429-4744-a944-487793b80393', // JOR_Agendamento_PosVisita
+]);
+// Telefone normalizado p/ E.164 (+55) no `to`; identity = id do identityMap phone.
+const INFOBIP_TO_EXPR =
+    "replaceAll(replaceAll(#{ExperiencePlatform.ProfileFieldGroup.profile.mobilePhone.number}," +
+    "'[^0-9]',''),'^(55)?(55)?([0-9]{10,11})$','+55$3')";
+const INFOBIP_IDENTITY_EXPR =
+    "#{ExperiencePlatform.ProfileFieldGroup.profile.identityMap.entry('phone').first().id}";
+// De-para de endereço: visitAddress -> _mrv.commercialRelationship.team.teamAddress (global).
+const INFOBIP_ADDR_FROM = "#{ExperiencePlatform.ProfileFieldGroup.profile._mrv.propertyVisit.visitAddress}";
+const INFOBIP_ADDR_TO = "#{ExperiencePlatform.ProfileFieldGroup.profile._mrv.commercialRelationship.team.teamAddress}";
+
+// Reescreve um payload Infobip (já clonado) no formato-alvo do concat: telefone
+// normalizado no `to`, campo `identity` logo após `destinations` e endereço remapeado.
+// Retorna um NOVO objeto com as chaves na ordem-alvo (channel, sender, destinations,
+// identity, template, content, ...).
+function applyInfobipMapping(m) {
+    if (m.destinations && m.destinations[0]) m.destinations[0].to = INFOBIP_TO_EXPR;
+    const body = m.content && m.content.body;
+    if (body && typeof body === 'object') {
+        Object.keys(body).forEach(function (k) {
+            if (body[k] === INFOBIP_ADDR_FROM) body[k] = INFOBIP_ADDR_TO;
+        });
+    }
+    const ordered = {};
+    if ('channel' in m) ordered.channel = m.channel;
+    if ('sender' in m) ordered.sender = m.sender;
+    if ('destinations' in m) ordered.destinations = m.destinations;
+    ordered.identity = INFOBIP_IDENTITY_EXPR;               // sempre após destinations
+    if ('template' in m) ordered.template = m.template;
+    if ('content' in m) ordered.content = m.content;
+    Object.keys(m).forEach(function (k) { if (!(k in ordered)) ordered[k] = m[k]; });
+    return ordered;
+}
+
 // Remove zero-width/BOM (achado: 14 payloads têm  grudado no namespaceId).
 function cleanInvisible(s) {
     return String(s == null ? '' : s)
@@ -84,19 +129,48 @@ function escapeForAjoString(s) {
 // literal — não são expressão AJO válida; resolver o de-para antes de usar.
 function buildConcatExpression(payload) {
     const json = JSON.stringify(payload || {});   // JSON compacto (1 linha)
-    const re = /@event\{[^}]+\}|#\{[^}]+\}/g;   // @event{} e #{dataSource} = entradas nuas
     const entries = [];
-    let last = 0, m;
-    while ((m = re.exec(json)) !== null) {
-        const lit = json.slice(last, m.index);
-        if (lit) entries.push('"' + escapeForAjoString(lit) + '"');
-        entries.push(m[0]);                        // @event{...} sem aspas
-        last = m.index + m[0].length;
+    let lit = '';
+    function flush() {
+        if (lit) { entries.push('"' + escapeForAjoString(lit) + '"'); lit = ''; }
     }
-    const tail = json.slice(last);
-    if (tail) entries.push('"' + escapeForAjoString(tail) + '"');
+    let i = 0;
+    while (i < json.length) {
+        // Expressões de função AJO (ex.: replaceAll(...)) entram NUAS na concat.
+        // Precisam de parênteses balanceados: contêm vírgulas, o #{...} interno e
+        // regex entre aspas simples (cujos parênteses são ignorados na contagem).
+        if (json.startsWith('replaceAll(', i)) {
+            const start = i;
+            i += 'replaceAll('.length;
+            let depth = 1, inQ = false;
+            for (; i < json.length && depth > 0; i++) {
+                const c = json[i];
+                if (inQ) { if (c === "'") inQ = false; }
+                else if (c === "'") inQ = true;
+                else if (c === '(') depth++;
+                else if (c === ')') depth--;
+            }
+            flush();
+            entries.push(json.slice(start, i));
+            continue;
+        }
+        // #{...} (profile) e @event{...} (evento unitário) = entradas nuas.
+        if (json.startsWith('#{', i) || json.startsWith('@event{', i)) {
+            const close = json.indexOf('}', i);
+            const end = close === -1 ? json.length : close + 1;
+            flush();
+            entries.push(json.slice(i, end));
+            i = end;
+            continue;
+        }
+        lit += json[i];
+        i++;
+    }
+    flush();
     if (entries.length === 0) entries.push('""');
-    return 'concat([' + entries.join(',') + '])';
+    // Multilinha: concat([ e ]) em linhas próprias; 1 entrada por linha (vírgula ao
+    // final de cada, exceto a última). Facilita colar/revisar no jsonValue do AJO.
+    return 'concat([\n' + entries.join(',\n') + '\n])';
 }
 
 // Cópia principal p/ AJO: expressão concat([...]) (cada variável @event vira 1 entrada).
@@ -458,10 +532,18 @@ function selectDePara(id) {
 // campo) por ora, até o de-para. Reaproveita as cópias concat/JSON (currentAjoPayload).
 function renderInfobip(journey, act) {
     // Em QAS o sender Infobip vira o de homologação (payload salvo tem o de PRD).
+    // Jornadas com de-para finalizado (INFOBIP_MAPPED) ainda são reescritas no
+    // formato-alvo. Em ambos os casos clona antes de mutar (não tocar act._infobip).
+    const mapped = INFOBIP_MAPPED.has(journey.journeyId);
     let msg = act._infobip;
-    if (currentBotEnv === 'QAS') {
+    if (mapped || currentBotEnv === 'QAS') {
         msg = JSON.parse(JSON.stringify(msg));
+    }
+    if (currentBotEnv === 'QAS') {
         msg.sender = INFOBIP_SENDERS.QAS;
+    }
+    if (mapped) {
+        msg = applyInfobipMapping(msg);   // to normalizado + identity + endereço
     }
     const payload = act._single ? msg : { messages: [msg] };
     currentAjoPayload = payload;
@@ -480,9 +562,15 @@ function renderInfobip(journey, act) {
         '<span class="ml-2 align-middle text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full">Infobip · WhatsApp</span>' + draftBadge + '</h2>' +
         '<p class="text-slate-500 mb-4">' + escapeHtml(journey.bu + ' / ' + journey.journeyName) + '</p>' +
         reviewHtml +
-        '<div class="mb-4 bg-amber-50 border border-amber-300 rounded-lg p-3 text-sm text-amber-900">' +
-        '<i class="fa-solid fa-circle-info mr-1"></i> Variáveis (corpo, <code class="text-amber-700">to</code>, ' +
-        '<code class="text-amber-700">callbackData</code> e mídia) estão como <b>string constante</b> (nome do campo) até o mapeamento de-para.</div>' +
+        (INFOBIP_MAPPED.has(journey.journeyId)
+            ? '<div class="mb-4 bg-emerald-50 border border-emerald-300 rounded-lg p-3 text-sm text-emerald-900">' +
+              '<i class="fa-solid fa-circle-check mr-1"></i> De-para aplicado: <code class="text-emerald-700">to</code> = telefone normalizado (E.164), ' +
+              'campo <code class="text-emerald-700">identity</code> (id do <code class="text-emerald-700">identityMap[\'phone\']</code>) e endereço em ' +
+              '<code class="text-emerald-700">_mrv.commercialRelationship.team.teamAddress</code>. Copie o <b>concat</b> no ambiente desejado (sender ' +
+              (currentBotEnv === 'QAS' ? 'QAS' : 'PRD') + ').</div>'
+            : '<div class="mb-4 bg-amber-50 border border-amber-300 rounded-lg p-3 text-sm text-amber-900">' +
+              '<i class="fa-solid fa-circle-info mr-1"></i> Variáveis (corpo, <code class="text-amber-700">to</code>, ' +
+              '<code class="text-amber-700">callbackData</code> e mídia) estão como <b>string constante</b> (nome do campo) até o mapeamento de-para.</div>') +
         '<div class="bg-white rounded-xl shadow-md overflow-hidden border border-lima-teal/20">' +
         '<div class="p-4 border-b border-slate-100 flex items-center justify-between">' +
         '<h3 class="font-bold text-lima-teal"><i class="fa-brands fa-whatsapp mr-2"></i> Payload Infobip</h3>' +
